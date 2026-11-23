@@ -1,0 +1,3402 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AURA // Architectural AI Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            studio: {
+              bg: '#121417',
+              panel: '#1b1f24',
+              elevated: '#22272e',
+              border: '#2a3038',
+              cyan: '#00d2ff',
+              amber: '#f59e0b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #121417;
+      color: #e5e7eb;
+      font-family: 'Inter', system-ui, sans-serif;
+      user-select: none;
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #121417; }
+    ::-webkit-scrollbar-thumb { background: #2a3038; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3b4450; }
+
+    /* Custom Range Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: #2a3038;
+      border-radius: 9999px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #00d2ff;
+      border: 2px solid #121417;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0, 210, 255, 0.5);
+      transition: transform 0.12s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.18); }
+    input[type="range"].amber-slider::-webkit-slider-thumb {
+      background: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+    }
+
+    /* Studio dot grid background */
+    .viewport-grid {
+      background-color: #0e1013;
+      background-image: radial-gradient(#232830 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Render button shimmer */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .btn-rendering {
+      background: linear-gradient(90deg, #0099cc 0%, #00d2ff 45%, #38bdf8 55%, #0099cc 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.8s infinite linear;
+    }
+
+    /* Toast animation */
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .toast-enter { animation: toastIn 0.2s ease-out forwards; }
+
+    /* Brush cursor ring */
+    #brushCursor {
+      position: fixed;
+      pointer-events: none;
+      border-radius: 9999px;
+      border: 1.5px solid #00d2ff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
+      transform: translate(-50%, -50%);
+      z-index: 40;
+      display: none;
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen w-screen bg-studio-bg text-gray-200 overflow-hidden">
+
+  <!-- Visually-Hidden File Inputs (sr-only instead of display:none for reliable native file picker activation) -->
+  <input type="file" id="packageFileInput" multiple accept="image/*,.png,.jpg,.jpeg,.webp" class="sr-only" />
+  <input type="file" id="singleChannelInput" accept="image/*,.png,.jpg,.jpeg,.webp" class="sr-only" />
+  <input type="file" id="moodBoardInput" accept="image/*" class="sr-only" />
+
+  <!-- Brush Cursor Preview -->
+  <div id="brushCursor"></div>
+
+  <!-- Global Drag-and-Drop Overlay -->
+  <div id="dropOverlay" class="fixed inset-0 z-50 hidden bg-[#121417]/90 backdrop-blur-sm border-2 border-dashed border-studio-cyan m-3 rounded-2xl flex flex-col items-center justify-center pointer-events-none">
+    <div class="w-16 h-16 rounded-2xl bg-studio-cyan/10 border border-studio-cyan/40 flex items-center justify-center mb-4">
+      <svg class="w-8 h-8 text-studio-cyan" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+      </svg>
+    </div>
+    <h2 class="text-xl font-semibold text-white tracking-tight">Drop Enscape Export Package</h2>
+    <p class="text-sm text-gray-400 mt-1 max-w-md text-center">
+      Drop Beauty, <span class="font-mono text-studio-cyan">_materialId</span>, <span class="font-mono text-studio-cyan">_objectId</span>, <span class="font-mono text-studio-cyan">_depth</span>, and <span class="font-mono text-studio-cyan">_alphaMask</span> files together (.png or .jpg).
+    </p>
+  </div>
+
+  <!-- Toast Notification Stack -->
+  <div id="toastContainer" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none"></div>
+
+  <!-- ==================== TOP BAR ==================== -->
+  <header class="shrink-0 bg-studio-panel border-b border-studio-border px-3 py-2 flex flex-wrap items-center justify-between gap-2 z-30">
+    <!-- Left: Branding + Load Actions -->
+    <div class="flex items-center gap-2 min-w-0">
+      <div class="flex items-center gap-2 pr-2.5 border-r border-studio-border">
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-studio-cyan to-blue-600 flex items-center justify-center shadow-lg shadow-studio-cyan/20 shrink-0">
+          <svg class="w-4 h-4 text-[#121417]" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2L2 19.5h20L12 2zm0 4.8l6.2 10.7H5.8L12 6.8z"/>
+          </svg>
+        </div>
+        <div class="leading-tight hidden sm:block">
+          <div class="text-xs font-bold tracking-wider text-white">AURA <span class="text-studio-cyan font-mono font-normal">//</span></div>
+          <div class="text-[10px] text-gray-400 tracking-wide uppercase">Architectural AI Studio</div>
+        </div>
+      </div>
+
+      <label id="btnImportPackage" for="packageFileInput" role="button" tabindex="0" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-studio-elevated hover:bg-[#2b313a] border border-studio-border text-xs font-medium text-white transition cursor-pointer shrink-0">
+        <svg class="w-3.5 h-3.5 text-studio-cyan" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+        </svg>
+        <span>Upload</span>
+      </label>
+    </div>
+
+    <!-- Center: Pass Status Pills + Subtle JPG ID Notice -->
+    <div class="hidden xl:flex items-center gap-2">
+      <div class="flex items-center gap-1 bg-studio-bg px-2 py-1 rounded-xl border border-studio-border" title="Click any pass badge to view or replace its file">
+        <span class="text-[10px] font-mono uppercase text-gray-500 mr-1">Passes</span>
+        <button data-channel="beauty" class="channel-badge px-2 py-0.5 rounded-md text-[11px] font-mono flex items-center gap-1.5 border border-transparent hover:border-studio-border transition cursor-pointer">
+          <span class="status-dot w-1.5 h-1.5 rounded-full bg-gray-600"></span>Beauty
+        </button>
+        <button data-channel="matId" class="channel-badge px-2 py-0.5 rounded-md text-[11px] font-mono flex items-center gap-1.5 border border-transparent hover:border-studio-border transition cursor-pointer">
+          <span class="status-dot w-1.5 h-1.5 rounded-full bg-gray-600"></span>MatID
+        </button>
+        <button data-channel="objId" class="channel-badge px-2 py-0.5 rounded-md text-[11px] font-mono flex items-center gap-1.5 border border-transparent hover:border-studio-border transition cursor-pointer">
+          <span class="status-dot w-1.5 h-1.5 rounded-full bg-gray-600"></span>ObjID
+        </button>
+        <button data-channel="depth" class="channel-badge px-2 py-0.5 rounded-md text-[11px] font-mono flex items-center gap-1.5 border border-transparent hover:border-studio-border transition cursor-pointer">
+          <span class="status-dot w-1.5 h-1.5 rounded-full bg-gray-600"></span>Depth
+        </button>
+        <button data-channel="alpha" class="channel-badge px-2 py-0.5 rounded-md text-[11px] font-mono flex items-center gap-1.5 border border-transparent hover:border-studio-border transition cursor-pointer">
+          <span class="status-dot w-1.5 h-1.5 rounded-full bg-gray-600"></span>Alpha
+        </button>
+      </div>
+
+      <!-- Unobtrusive JPG ID Pass Warning Badge -->
+      <div id="jpgIdBadge" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-lg bg-studio-amber/10 border border-studio-amber/30 text-[10px] font-medium text-amber-300/90" title="JPEG compression creates edge artifacts on flat ID passes. Color tolerance has been automatically raised.">
+        <span class="w-1.5 h-1.5 rounded-full bg-studio-amber shrink-0"></span>
+        <span>JPG ID pass detected (PNG recommended for cleaner edges)</span>
+      </div>
+    </div>
+
+    <!-- Right: Viewport Pass Switcher + Mask Overlay & Split Toggles -->
+    <div class="flex items-center gap-1.5 overflow-x-auto max-w-full">
+      <div class="flex items-center gap-0.5 bg-studio-bg p-1 rounded-xl border border-studio-border">
+        <button data-view="beauty" class="view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer bg-studio-cyan text-[#121417]">Beauty</button>
+        <button data-view="matId" class="view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white whitespace-nowrap">Material ID</button>
+        <button data-view="objId" class="view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white whitespace-nowrap">Object ID</button>
+        <button data-view="depth" class="view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white">Depth</button>
+        <button data-view="alpha" class="view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white">Alpha</button>
+        <button data-view="regionMap" class="view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white whitespace-nowrap">Region Map</button>
+        <button data-view="result" class="view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white">Result</button>
+      </div>
+
+      <button id="btnToggleMaskOverlay" title="Toggle Mask Overlay" class="px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border-studio-cyan/40 whitespace-nowrap">
+        Mask
+      </button>
+
+      <button id="btnToggleSplit" title="Toggle Before / After Split Comparison" class="px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition cursor-pointer bg-studio-bg text-gray-400 hover:text-white border-studio-border whitespace-nowrap">
+        Split
+      </button>
+
+      <button id="btnOpenSettings" title="API Key & Model Settings (stored locally in your browser)" class="px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition cursor-pointer bg-studio-bg text-gray-300 hover:text-white border-studio-border hover:border-gray-500 flex items-center gap-1.5 whitespace-nowrap">
+        <span id="apiKeyStatusDot" class="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span class="hidden sm:inline">API Key</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <div class="flex-1 flex min-h-0 relative overflow-hidden">
+
+    <!-- ===== LEFT SELECTION TOOLBAR ===== -->
+    <aside class="w-14 sm:w-16 shrink-0 bg-studio-panel border-r border-studio-border flex flex-col items-center py-3 gap-2 z-20 overflow-y-auto">
+      <div class="text-[9px] font-mono uppercase tracking-widest text-gray-500">Select</div>
+
+      <!-- Pan / Inspect -->
+      <button data-tool="pan" title="Pan & Inspect (H / Space)" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer text-gray-400 hover:text-white hover:bg-studio-elevated border border-transparent">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59"/>
+        </svg>
+      </button>
+
+      <!-- Material ID Picker -->
+      <button data-tool="matId" title="Material ID Picker (M) — Click to select material; Shift=Add, Alt=Subtract" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border border-studio-cyan/40">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42"/>
+        </svg>
+      </button>
+
+      <!-- Object ID Picker -->
+      <button data-tool="objId" title="Object ID Picker (O) — Click to select individual object; Shift=Add, Alt=Subtract" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer text-gray-400 hover:text-white hover:bg-studio-elevated border border-transparent">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/>
+        </svg>
+      </button>
+
+      <!-- Additive/Subtractive Brush -->
+      <button data-tool="brush" title="Mask Brush (B) — Paint add/subtract mask" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer text-gray-400 hover:text-white hover:bg-studio-elevated border border-transparent">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"/>
+        </svg>
+      </button>
+
+      <!-- Polygon Lasso -->
+      <button data-tool="lasso" title="Polygon Lasso (L) — Click vertices, double-click or click start node to close" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer text-gray-400 hover:text-white hover:bg-studio-elevated border border-transparent">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12c0-4.142 3.358-7.5 7.5-7.5s7.5 3.358 7.5 7.5-3.358 7.5-7.5 7.5c-1.85 0-3.545-.67-4.854-1.78M7.5 17.75c-1.105 0-2 .895-2 2s.895 2 2 2 2-.895 2-2-.895-2-2-2z"/>
+        </svg>
+      </button>
+
+      <div class="w-8 h-px bg-studio-border my-1"></div>
+
+      <!-- Add / Subtract Mode -->
+      <div class="flex flex-col gap-1 bg-studio-bg p-1 rounded-xl border border-studio-border">
+        <button id="btnModeAdd" title="Add to Mask (Shift+Click)" class="w-8 h-7 rounded-lg text-xs font-mono font-bold transition cursor-pointer bg-studio-cyan text-[#121417]">+</button>
+        <button id="btnModeSub" title="Subtract from Mask (Alt+Click)" class="w-8 h-7 rounded-lg text-xs font-mono font-bold transition cursor-pointer text-gray-400 hover:text-white">-</button>
+      </div>
+
+      <div class="w-8 h-px bg-studio-border my-1"></div>
+
+      <!-- Mask Operations -->
+      <button id="btnInvertMask" title="Invert Mask (I)" class="w-10 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-studio-elevated transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m0-18a9 9 0 010 18m0-18a9 9 0 000 18"/>
+        </svg>
+      </button>
+
+      <button id="btnUndoMask" title="Undo Mask (Ctrl+Z)" class="w-10 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-studio-elevated transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
+        </svg>
+      </button>
+
+      <button id="btnClearMask" title="Clear Mask (Esc)" class="w-10 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+        </svg>
+      </button>
+    </aside>
+
+    <!-- ===== CENTER VIEWPORT + BOTTOM FILMSTRIP ===== -->
+    <main class="flex-1 flex flex-col min-w-0 min-h-0 relative">
+
+      <!-- Floating Mask Refinement & Viewport Bar -->
+      <div class="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <!-- Left: Active Tool & Mask Refinement Controls -->
+        <div class="pointer-events-auto flex flex-wrap items-center gap-3 bg-studio-panel/92 backdrop-blur-md border border-studio-border rounded-xl px-3 py-1.5 shadow-xl">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-studio-cyan"></span>
+            <span id="activeToolLabel" class="text-xs font-semibold text-white">Material ID Picker</span>
+          </div>
+
+          <!-- Color Tolerance (0-60) -->
+          <div id="optTolerance" class="flex items-center gap-2 border-l border-studio-border pl-3" title="Perceptual chroma-weighted color tolerance (auto-set to 10 for JPG passes, 4 for PNG)">
+            <label class="text-[11px] text-gray-400">Tolerance</label>
+            <input type="range" id="sliderTolerance" min="1" max="60" value="10" class="w-20" />
+            <span id="valTolerance" class="text-[11px] font-mono text-studio-cyan w-5 text-right">10</span>
+          </div>
+
+          <!-- Contiguous vs Global Toggle (Object ID defaults ON, Material ID defaults OFF) -->
+          <button id="btnContiguousId" title="Contiguous Flood-Fill: ON selects only connected pixels of the clicked object; OFF selects all matching regions globally" class="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-studio-border bg-studio-bg text-[11px] font-medium text-gray-300 hover:text-white transition cursor-pointer">
+            <span id="contiguousDot" class="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
+            <span id="contiguousLabel">Global</span>
+          </button>
+
+          <!-- Mask Expansion / Dilation (0-8px) -->
+          <div id="optDilation" class="flex items-center gap-2 border-l border-studio-border pl-3" title="Expands ID selection outward to eliminate anti-aliased edge halos">
+            <label class="text-[11px] text-gray-400">Dilate</label>
+            <input type="range" id="sliderDilation" min="0" max="8" value="2" class="w-16" />
+            <span id="valDilation" class="text-[11px] font-mono text-studio-cyan w-6 text-right">2px</span>
+          </div>
+
+          <!-- Mask Feather (0-8px) -->
+          <div id="optFeather" class="flex items-center gap-2 border-l border-studio-border pl-3" title="Softens mask edge when compositing generated pixels onto the Beauty pass">
+            <label class="text-[11px] text-gray-400">Feather</label>
+            <input type="range" id="sliderFeather" min="0" max="8" value="2" class="w-16" />
+            <span id="valFeather" class="text-[11px] font-mono text-studio-cyan w-6 text-right">2px</span>
+          </div>
+
+          <!-- Brush Size (shown for Brush tool) -->
+          <div id="optBrushSize" class="hidden items-center gap-2 border-l border-studio-border pl-3">
+            <label class="text-[11px] text-gray-400">Brush</label>
+            <input type="range" id="sliderBrushSize" min="6" max="140" value="36" class="w-20" />
+            <span id="valBrushSize" class="text-[11px] font-mono text-studio-cyan w-8 text-right">36px</span>
+          </div>
+
+          <!-- Polygon Lasso hint -->
+          <div id="optLassoHint" class="hidden items-center gap-1.5 border-l border-studio-border pl-3 text-[11px] text-gray-400">
+            <span>Click vertices · Double-click or <kbd class="px-1 py-0.5 rounded bg-studio-bg border border-studio-border text-[10px] font-mono text-gray-300">Enter</kbd> to close</span>
+          </div>
+
+          <!-- Auto Normalize Depth toggle (highlighted when viewing Depth pass) -->
+          <label id="depthNormTopToggle" class="hidden items-center gap-1.5 border-l border-studio-border pl-3 cursor-pointer" title="Automatically stretches low-contrast interior Enscape depth passes to full 0-255 luminance range">
+            <input type="checkbox" id="chkNormalizeDepthTop" checked class="accent-studio-cyan rounded cursor-pointer" />
+            <span class="text-[11px] text-studio-cyan font-medium">Auto Normalize Depth</span>
+            <span id="depthRangeReadout" class="text-[10px] font-mono text-gray-400"></span>
+          </label>
+        </div>
+
+        <!-- Right: Pixel Readout & Zoom Controls -->
+        <div class="pointer-events-auto flex items-center gap-2 bg-studio-panel/92 backdrop-blur-md border border-studio-border rounded-xl px-2.5 py-1 shadow-xl">
+          <div class="hidden md:flex items-center gap-2 text-[11px] font-mono text-gray-400 pr-2 border-r border-studio-border">
+            <span id="coordText">X:— Y:—</span>
+            <span id="swatchReadout" class="w-3 h-3 rounded-sm border border-white/25 bg-transparent inline-block"></span>
+          </div>
+          <button id="btnZoomOut" class="w-6 h-6 rounded-md hover:bg-studio-elevated text-gray-300 text-xs font-mono cursor-pointer">-</button>
+          <span id="zoomLabel" class="text-[11px] font-mono text-gray-200 w-10 text-center">100%</span>
+          <button id="btnZoomIn" class="w-6 h-6 rounded-md hover:bg-studio-elevated text-gray-300 text-xs font-mono cursor-pointer">+</button>
+          <button id="btnFitScreen" class="px-2 py-0.5 rounded-md bg-studio-elevated hover:bg-[#2c333d] text-[11px] text-gray-300 cursor-pointer">Fit</button>
+        </div>
+      </div>
+
+      <!-- Responsive Canvas Viewport -->
+      <div id="viewportContainer" class="flex-1 relative viewport-grid overflow-hidden flex items-center justify-center">
+        <canvas id="mainCanvas" class="block w-full h-full touch-none"></canvas>
+
+        <!-- Blank Canvas Empty State -->
+        <div id="emptyViewportState" class="absolute inset-0 z-10 flex items-center justify-center p-6 pointer-events-none">
+          <div class="pointer-events-auto max-w-md w-full bg-studio-panel/90 backdrop-blur-md border border-studio-border rounded-2xl p-6 text-center shadow-2xl">
+            <div class="w-12 h-12 rounded-2xl bg-studio-cyan/10 border border-studio-cyan/30 flex items-center justify-center mx-auto mb-3.5">
+              <svg class="w-6 h-6 text-studio-cyan" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+            </div>
+            <h2 class="text-sm font-semibold text-white tracking-tight">Blank Studio Canvas</h2>
+            <p class="text-xs text-gray-400 mt-1.5 leading-relaxed">
+              Drag &amp; drop your Enscape export package anywhere here (Beauty, <span class="font-mono text-gray-300">_materialId</span>, <span class="font-mono text-gray-300">_objectId</span>, <span class="font-mono text-gray-300">_depth</span>, <span class="font-mono text-gray-300">_alphaMask</span>) to begin.
+            </p>
+            <div class="flex items-center justify-center gap-2 mt-4">
+              <label for="packageFileInput" role="button" tabindex="0" class="px-4 py-2 rounded-xl bg-studio-cyan hover:bg-cyan-300 text-[#121417] text-xs font-bold transition cursor-pointer">
+                Upload
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Draggable Before/After Split Comparison Overlay -->
+        <div id="splitOverlay" class="hidden absolute inset-0 pointer-events-none z-10">
+          <div id="splitLine" class="absolute top-0 bottom-0 w-0.5 bg-studio-cyan shadow-[0_0_12px_rgba(0,210,255,0.85)] pointer-events-auto cursor-ew-resize" style="left: 50%;">
+            <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-studio-panel border-2 border-studio-cyan flex items-center justify-center shadow-lg">
+              <svg class="w-4 h-4 text-studio-cyan" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15L5.25 12l3-3m7.5 6l3-3-3-3"/>
+              </svg>
+            </div>
+            <span class="absolute top-16 right-3 px-2 py-0.5 rounded bg-[#121417]/85 border border-studio-border text-[10px] font-mono text-gray-300 pointer-events-none">BEFORE</span>
+            <span class="absolute top-16 left-3 px-2 py-0.5 rounded bg-[#121417]/85 border border-studio-cyan/40 text-[10px] font-mono text-studio-cyan pointer-events-none">AFTER</span>
+          </div>
+        </div>
+
+        <!-- Rendering Progress Overlay -->
+        <div id="renderProgressOverlay" class="hidden absolute inset-0 z-20 bg-[#121417]/75 backdrop-blur-[2px] flex flex-col items-center justify-center">
+          <div class="bg-studio-panel border border-studio-border rounded-2xl px-6 py-5 shadow-2xl flex flex-col items-center gap-3 max-w-xs text-center">
+            <div class="w-10 h-10 rounded-full border-2 border-studio-border border-t-studio-cyan animate-spin"></div>
+            <div class="text-sm font-semibold text-white">Synthesizing Architectural Render</div>
+            <div id="renderStatusText" class="text-xs font-mono text-studio-cyan">Packaging Enscape passes...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== BOTTOM ITERATION FILMSTRIP ===== -->
+      <section class="shrink-0 bg-studio-panel border-t border-studio-border z-20">
+        <div class="h-8 px-3 flex items-center justify-between border-b border-studio-border/60">
+          <button id="btnToggleFilmstrip" class="flex items-center gap-2 text-xs font-medium text-gray-300 hover:text-white cursor-pointer">
+            <svg id="filmstripChevron" class="w-3.5 h-3.5 text-gray-400 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+            </svg>
+            <span>Session Iterations</span>
+            <span id="iterationCount" class="px-1.5 py-0.2 rounded-md bg-studio-elevated font-mono text-[10px] text-studio-cyan">0</span>
+          </button>
+          <div class="flex items-center gap-3 text-[10px] font-mono text-gray-400">
+            <span id="sceneNameLabel" class="hidden sm:inline text-gray-500">Scene: None</span>
+            <span id="maskStatsLabel" class="text-studio-cyan">Mask: 0.0% selected</span>
+          </div>
+        </div>
+        <div id="filmstripBody" class="h-28 px-3 py-2 flex items-center gap-2.5 overflow-x-auto"></div>
+      </section>
+    </main>
+
+    <!-- ===== RIGHT VERAS-INSPIRED CONTROL PANEL ===== -->
+    <aside class="w-72 sm:w-80 shrink-0 bg-studio-panel border-l border-studio-border flex flex-col min-h-0 z-20">
+      <div class="flex-1 overflow-y-auto p-3.5 space-y-4">
+
+        <!-- 0. MHM PRESET PROMPTS DROPDOWN -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="presetPromptSelect" class="text-[11px] font-semibold uppercase tracking-wider text-gray-300">MHM Render Presets</label>
+            <span class="text-[9px] font-mono text-studio-cyan">Auto-fills below</span>
+          </div>
+          <div class="relative">
+            <select id="presetPromptSelect" class="w-full appearance-none bg-studio-bg border border-studio-border hover:border-gray-500 focus:border-studio-cyan rounded-xl pl-3 pr-8 py-2 text-xs text-white outline-none transition cursor-pointer">
+              <option value="">— Select an MHM render preset —</option>
+              <option value="exterior_rendering">1. Exterior Architectural Rendering</option>
+              <option value="interior_rendering">2. Interior Architectural Rendering</option>
+              <option value="concept_sketch">3. Architectural Concept Sketch</option>
+              <option value="finish_board">4. Interior Material and Finish Board</option>
+              <option value="axonometric_illustration">5. Axonometric Design Illustration</option>
+            </select>
+            <svg class="w-3.5 h-3.5 text-gray-400 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+            </svg>
+          </div>
+          <p id="presetPurposeNote" class="hidden mt-1.5 px-2.5 py-1.5 rounded-lg bg-studio-bg/80 border border-studio-border/80 text-[10px] text-gray-400 leading-snug"></p>
+        </div>
+
+        <!-- 1. OVERALL DIRECTION (GLOBAL PROMPT) -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="promptInput" class="text-[11px] font-semibold uppercase tracking-wider text-gray-300">Overall Direction</label>
+            <button id="btnClearPrompt" class="text-[10px] text-gray-500 hover:text-gray-300 cursor-pointer">Clear</button>
+          </div>
+          <p class="text-[10px] text-gray-500 mb-1.5 leading-snug">
+            Scene-wide lighting, atmosphere &amp; style. Leave blank to strictly lock all unmasked areas to the original Enscape render.
+          </p>
+          <textarea id="promptInput" rows="7" placeholder="e.g. Warm golden-hour architectural interior, soft indirect lighting, realistic reflections... (leave blank to lock unmasked areas)" class="w-full bg-studio-bg border border-studio-border focus:border-studio-cyan rounded-xl p-2.5 text-xs text-white placeholder-gray-500 outline-none resize-y leading-relaxed"></textarea>
+        </div>
+
+        <!-- 2. ACTIVE SELECTION STAGING BOX -->
+        <div id="stagingBox" class="hidden rounded-xl border border-studio-cyan/50 bg-studio-cyan/[0.06] p-3 space-y-2 shadow-lg shadow-studio-cyan/5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span id="stagingDot" class="w-2.5 h-2.5 rounded-full bg-studio-cyan animate-pulse"></span>
+              <span id="stagingTitle" class="text-[11px] font-semibold uppercase tracking-wider text-studio-cyan">Active Selection</span>
+            </div>
+            <span id="stagingCoverage" class="text-[10px] font-mono text-gray-400">0.0%</span>
+          </div>
+
+          <input type="text" id="elementNameInput" placeholder="Element 1" class="w-full bg-studio-bg border border-studio-border focus:border-studio-cyan rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-gray-500 outline-none" />
+
+          <textarea id="elementPromptInput" rows="2" placeholder="Direction for this element (e.g. Warm rift-cut white oak acoustic slats with recessed linear LEDs)" class="w-full bg-studio-bg border border-studio-border focus:border-studio-cyan rounded-lg p-2 text-xs text-white placeholder-gray-500 outline-none resize-none leading-relaxed"></textarea>
+
+          <div class="flex items-center gap-1.5 pt-0.5">
+            <button id="btnSaveElement" class="flex-1 py-1.5 px-3 rounded-lg bg-studio-cyan hover:bg-cyan-300 text-[#121417] text-xs font-bold transition cursor-pointer">Save Element</button>
+            <button id="btnCancelStaging" class="py-1.5 px-2.5 rounded-lg bg-studio-bg hover:bg-studio-elevated border border-studio-border text-xs text-gray-300 transition cursor-pointer">Clear</button>
+          </div>
+        </div>
+
+        <!-- 3. SAVED ELEMENTS STACK -->
+        <div class="space-y-2 pt-2 border-t border-studio-border">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-300">Saved Elements</span>
+              <span id="savedElementCount" class="px-1.5 py-0.2 rounded-md bg-studio-elevated font-mono text-[10px] text-studio-cyan">0</span>
+            </div>
+            <button id="btnToggleSavedOverlays" class="text-[10px] font-medium px-2 py-0.5 rounded-md border border-studio-cyan/40 bg-studio-cyan/10 text-studio-cyan hover:bg-studio-cyan/20 transition cursor-pointer">
+              Overlays: ON
+            </button>
+          </div>
+
+          <div id="savedElementsEmpty" class="rounded-xl border border-dashed border-studio-border bg-studio-bg/60 p-3 text-center">
+            <div class="text-[11px] text-gray-400">No element instructions saved yet</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">Pick a Material ID, Object ID, Brush, or Lasso region to stage an instruction.</div>
+          </div>
+
+          <div id="savedElementsList" class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5"></div>
+        </div>
+
+        <!-- 4. EXECUTION MODE, RESOLUTION & LOCK SETTINGS -->
+        <div class="space-y-2.5 pt-2 border-t border-studio-border">
+          <!-- Output Resolution Selector (Preview vs Production) -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label for="resolutionSelect" class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Output Resolution</label>
+              <span id="resTierBadge" class="text-[10px] font-mono text-studio-cyan">Preview · 2048×1152</span>
+            </div>
+            <div class="relative">
+              <select id="resolutionSelect" class="w-full appearance-none bg-studio-bg border border-studio-border hover:border-gray-500 focus:border-studio-cyan rounded-xl pl-3 pr-8 py-2 text-xs text-white outline-none transition cursor-pointer">
+                <option value="2k" selected>2K — Fast Preview (2048px)</option>
+                <option value="4k">4K — Production Render (3840px)</option>
+                <option value="8k">8K — Ultra Presentation (7680px)</option>
+              </select>
+              <svg class="w-3.5 h-3.5 text-gray-400 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </div>
+            <div id="resHintText" class="text-[10px] text-gray-500 mt-1 leading-snug">
+              Optimized lightweight payload for rapid design iteration.
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Execution Mode</span>
+              <span id="execModeHint" class="text-[10px] font-mono text-gray-500">1 API Call</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1 bg-studio-bg p-1 rounded-xl border border-studio-border">
+              <button id="btnExecUnified" class="exec-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border border-studio-cyan/40">Unified Color Map</button>
+              <button id="btnExecSequential" class="exec-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white border border-transparent">Sequential Lock</button>
+            </div>
+            <div id="unifiedLimitWarning" class="hidden mt-1.5 px-2.5 py-1.5 rounded-lg bg-studio-amber/10 border border-studio-amber/35 text-[10px] text-amber-300 leading-snug">
+              More than 4 elements enabled. Consider <span class="font-semibold">Sequential Lock</span> for zero prompt bleeding.
+            </div>
+          </div>
+
+          <!-- Strict Unmasked Pixel Lock Toggle -->
+          <div class="flex items-center justify-between bg-studio-bg/90 border border-studio-border rounded-xl px-2.5 py-2">
+            <div class="leading-tight pr-2">
+              <div class="text-[11px] font-medium text-gray-200">Strict Unmasked Pixel Lock</div>
+              <div class="text-[10px] text-gray-500">Preserves untouched pixels 100% identically</div>
+            </div>
+            <input type="checkbox" id="chkStrictLock" checked class="w-4 h-4 accent-studio-cyan cursor-pointer shrink-0" />
+          </div>
+        </div>
+
+        <!-- Geometry Retention, Depth Normalization & Creativity -->
+        <div class="space-y-3 bg-studio-bg p-3 rounded-xl border border-studio-border">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[11px] font-medium text-gray-300">Geometry Retention</span>
+                <span id="depthActivePill" class="hidden px-1.5 py-0.2 rounded bg-emerald-500/15 border border-emerald-500/40 text-[9px] font-mono text-emerald-400">DEPTH</span>
+              </div>
+              <span id="valGeometry" class="text-[11px] font-mono text-studio-cyan">85%</span>
+            </div>
+            <input type="range" id="sliderGeometry" min="0" max="100" value="85" />
+          </div>
+
+          <!-- Auto Normalize Depth Toggle -->
+          <div class="flex items-center justify-between pt-1 border-t border-studio-border/60">
+            <div class="leading-tight">
+              <div class="text-[11px] font-medium text-gray-300">Auto Normalize Depth</div>
+              <div id="depthNormSubtext" class="text-[10px] text-gray-500">Stretch interior depth to 0–255</div>
+            </div>
+            <input type="checkbox" id="chkNormalizeDepth" checked class="w-4 h-4 accent-studio-cyan cursor-pointer shrink-0" />
+          </div>
+
+          <div class="pt-1 border-t border-studio-border/60">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-medium text-gray-300">Creativity</span>
+              <span id="valCreativity" class="text-[11px] font-mono text-studio-amber">45%</span>
+            </div>
+            <input type="range" id="sliderCreativity" min="0" max="100" value="45" class="amber-slider" />
+          </div>
+        </div>
+
+        <!-- Seed Input + Lock Seed Toggle -->
+        <div class="flex items-center justify-between gap-2 bg-studio-bg px-3 py-2 rounded-xl border border-studio-border">
+          <label class="flex items-center gap-1.5 cursor-pointer shrink-0">
+            <input type="checkbox" id="chkLockSeed" class="accent-studio-cyan cursor-pointer" />
+            <span class="text-[11px] text-gray-300">Lock Seed</span>
+          </label>
+          <div class="flex items-center gap-1.5">
+            <input type="number" id="seedInput" value="482910" class="w-24 bg-studio-panel border border-studio-border rounded-lg px-2 py-1 text-[11px] font-mono text-white text-right outline-none focus:border-studio-cyan" />
+            <button id="btnRandomSeed" title="Randomize Seed" class="p-1.5 rounded-lg bg-studio-elevated hover:bg-[#2c333d] text-gray-300 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Visual Reference / Mood Board Uploader -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Mood Board Reference</span>
+            <button id="btnClearMood" class="hidden text-[10px] text-red-400 hover:text-red-300 cursor-pointer">Remove</button>
+          </div>
+          <label id="moodBoardZone" for="moodBoardInput" class="relative h-20 rounded-xl border border-dashed border-studio-border hover:border-studio-cyan/60 bg-studio-bg flex items-center justify-center overflow-hidden transition cursor-pointer">
+            <div id="moodBoardPlaceholder" class="text-center px-3">
+              <div class="text-[11px] text-gray-400">Click to upload material / lighting ref</div>
+              <div class="text-[10px] text-gray-600">Optional visual style guide</div>
+            </div>
+            <img id="moodBoardPreview" class="hidden w-full h-full object-cover" alt="Mood board reference" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Sticky Footer Render Action -->
+      <div class="p-3.5 border-t border-studio-border bg-studio-panel space-y-2 shrink-0">
+        <button id="btnRender" class="w-full py-2.5 px-4 rounded-xl bg-studio-cyan hover:bg-cyan-300 text-[#121417] font-bold text-sm tracking-wide shadow-lg shadow-studio-cyan/20 transition flex items-center justify-center gap-2 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+          </svg>
+          <span id="btnRenderLabel">Render</span>
+        </button>
+
+        <button id="btnDownload" disabled class="w-full py-2 px-4 rounded-xl bg-studio-elevated hover:bg-[#2c333d] disabled:opacity-40 disabled:cursor-not-allowed border border-studio-border text-xs font-medium text-gray-200 transition flex items-center justify-center gap-2 cursor-pointer">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+          <span>Download Active Render (PNG)</span>
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Channel Inspect / Replace Modal -->
+  <div id="channelModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-studio-panel border border-studio-border rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="channelModalTitle" class="text-sm font-semibold text-white">Channel Options</h3>
+        <button id="btnCloseChannelModal" class="text-gray-400 hover:text-white cursor-pointer text-lg leading-none">&times;</button>
+      </div>
+      <p id="channelModalDesc" class="text-xs text-gray-400 mb-4 leading-relaxed"></p>
+      <div class="flex gap-2">
+        <button id="btnInspectChannel" class="flex-1 py-2 rounded-xl bg-studio-elevated hover:bg-[#2c333d] border border-studio-border text-xs font-medium text-white cursor-pointer">View in Viewport</button>
+        <label id="btnReassignChannel" for="singleChannelInput" role="button" tabindex="0" class="flex-1 py-2 rounded-xl bg-studio-cyan hover:bg-cyan-300 text-[#121417] text-xs font-semibold cursor-pointer text-center">Upload / Replace</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings / API Key Modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-studio-panel border border-studio-border rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-white">Studio API Settings</h3>
+          <p class="text-[11px] text-gray-400 mt-0.5">Configure your Gemini API key for GitHub Pages or local use.</p>
+        </div>
+        <button id="btnCloseSettingsModal" class="text-gray-400 hover:text-white cursor-pointer text-lg leading-none">&times;</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="apiKeyInput" class="text-[11px] font-semibold uppercase tracking-wider text-gray-300">Gemini API Key</label>
+            <span id="settingsKeyBadge" class="text-[10px] font-mono text-gray-500">Default Runtime</span>
+          </div>
+          <div class="relative flex items-center">
+            <input type="password" id="apiKeyInput" autocomplete="off" spellcheck="false" placeholder="AIzaSy... (leave blank for built-in preview)" class="w-full bg-studio-bg border border-studio-border focus:border-studio-cyan rounded-xl pl-3 pr-16 py-2 text-xs font-mono text-white placeholder-gray-500 outline-none" />
+            <button type="button" id="btnToggleApiKeyVis" class="absolute right-2 px-2 py-1 rounded-md bg-studio-elevated hover:bg-[#2c333d] text-[10px] font-mono text-gray-300 cursor-pointer">Show</button>
+          </div>
+          <p class="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
+            Saved only in your browser's <span class="font-mono text-gray-400">localStorage</span>—never uploaded to GitHub. Get a key at <span class="font-mono text-studio-cyan">aistudio.google.com</span>.
+          </p>
+        </div>
+
+        <div>
+          <label for="modelIdInput" class="block text-[11px] font-semibold uppercase tracking-wider text-gray-300 mb-1">Image Generation Model</label>
+          <input type="text" id="modelIdInput" value="gemini-3.1-flash-image" spellcheck="false" class="w-full bg-studio-bg border border-studio-border focus:border-studio-cyan rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-gray-500 outline-none" />
+          <p class="text-[10px] text-gray-500 mt-1">Default: <span class="font-mono text-gray-400">gemini-3.1-flash-image</span>. Change only if your Google AI Studio account uses a different image model ID.</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 pt-2 border-t border-studio-border">
+        <button id="btnClearApiKey" class="px-3 py-2 rounded-xl bg-studio-bg hover:bg-red-500/10 border border-studio-border hover:border-red-500/40 text-xs text-gray-400 hover:text-red-300 transition cursor-pointer">Clear Key</button>
+        <div class="flex items-center gap-2">
+          <button id="btnCancelSettings" class="px-3.5 py-2 rounded-xl bg-studio-elevated hover:bg-[#2c333d] border border-studio-border text-xs font-medium text-gray-200 transition cursor-pointer">Cancel</button>
+          <button id="btnSaveSettings" class="px-4 py-2 rounded-xl bg-studio-cyan hover:bg-cyan-300 text-[#121417] text-xs font-bold transition cursor-pointer">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      // =========================================================================
+      // 1. APPLICATION STATE & PRESETS
+      // =========================================================================
+      const apiKey = ""; // Runtime-provided Gemini API key
+      const DEFAULT_MODEL_ID = "gemini-3.1-flash-image";
+      const STORAGE_KEY_API = "aura_gemini_api_key";
+      const STORAGE_KEY_MODEL = "aura_gemini_model_id";
+          name: "3. Architectural Concept Sketch",
+          purpose: "Present early design concepts with emphasis on massing, proportion, and spatial relationships.",
+          prompt: `TASK:
+Convert the supplied architectural image into an architectural concept sketch.
+
+STYLE & ART DIRECTION:
+Professional architectural pen sketch on white paper. Keep the composition legible and intentionally conceptual.
+
+COMPONENTS:
+Architecture: Emphasize the primary architectural forms.
+Context: Simplify secondary textures, planting, and entourage.
+People: Represent people as simple line figures.
+
+LINEWORK & SHADING:
+Use a clear hierarchy of line weights, restrained hatching, and minimal tonal shading.
+
+CONSTRAINTS:
+Preserve the camera position, geometry, proportions, openings, and principal spatial relationships.
+Do not introduce new design elements or change the building or room layout.`
+        },
+        finish_board: {
+          name: "4. Interior Material and Finish Board",
+          purpose: "Develop a visual palette for an interior concept presentation.",
+          prompt: `TASK:
+Analyze the supplied interior image and create a coordinated material and finish concept board.
+
+STYLE & ART DIRECTION:
+A balanced photographic flat lay on a neutral background, presented as a conceptual palette for subsequent product selection and verification.
+
+ANALYSIS & EXTRACTION:
+Identify the visible color palette, material appearances, textures, furniture character, and lighting character.
+Distinguish visible characteristics from inferred material identities.
+
+BOARD CONTENTS:
+Samples: Arrange representative paint swatches, wood samples, stone or tile samples, fabrics, and metal finishes.
+References: Include selected furniture or lighting references where they clarify the design direction.
+
+CONSTRAINTS:
+Preserve the source image's palette and overall character.
+Do not invent manufacturers, product names, specifications, certifications, or performance claims.`
+        },
+        axonometric_illustration: {
+          name: "5. Axonometric Design Illustration",
+          purpose: "Explain building massing, room organization, or relationships between major design elements. (Use an actual axonometric view exported from Revit, Rhino, or another model authoring tool.)",
+          prompt: `TASK:
+Use the supplied axonometric model view to create a clear architectural presentation illustration.
+
+STYLE & ART DIRECTION:
+Restrained materials and a neutral background. Keep the illustration consistent with the supplied model view.
+
+GEOMETRY & COMPOSITION:
+Maintain clear visual separation between major elements.
+Simplify secondary detail while retaining the information needed to understand the design.
+
+LIGHTING:
+Use subtle shadows to clarify form and spatial relationships.
+
+CONSTRAINTS:
+Preserve the projection, geometry, proportions, openings, and spatial relationships.
+Do not invent concealed spaces or construction, remove elements, or create an exploded assembly unless explicitly instructed.`
+        }
+      };
+
+      const RESOLUTION_CONFIGS = {
+        '2k': {
+          label: '2K',
+          tier: 'Preview',
+          targetLongEdge: 2048,
+          apiInputMaxDim: 1280,
+          jpegQuality: 0.84,
+          hint: 'Optimized lightweight payload for rapid design iteration.',
+          promptHint: 'Clean balanced architectural preview quality.'
+        },
+        '4k': {
+          label: '4K',
+          tier: 'Production',
+          targetLongEdge: 3840,
+          apiInputMaxDim: 2048,
+          jpegQuality: 0.92,
+          hint: 'High-detail production pipeline for client presentations & decks.',
+          promptHint: '4K production architectural visualization quality with crisp edge fidelity, realistic micro-textures, and refined global illumination.'
+        },
+        '8k': {
+          label: '8K',
+          tier: 'Ultra Production',
+          targetLongEdge: 7680,
+          apiInputMaxDim: 3840,
+          jpegQuality: 0.96,
+          hint: 'Maximum native input fidelity & 8K large-format board export.',
+          promptHint: '8K ultra-high-resolution monograph-grade architectural photography with razor-sharp fine geometry, intricate wood grain, fabric weave, and physically accurate reflections.'
+        }
+      };
+
+      const ELEMENT_PALETTE = [
+        { name: 'Cyan',    hex: '#06b6d4', rgb: [6, 182, 212] },
+        { name: 'Magenta', hex: '#ec4899', rgb: [236, 72, 153] },
+        { name: 'Lime',    hex: '#84cc16', rgb: [132, 204, 22] },
+        { name: 'Amber',   hex: '#f59e0b', rgb: [245, 158, 11] },
+        { name: 'Violet',  hex: '#8b5cf6', rgb: [139, 92, 246] },
+        { name: 'Coral',   hex: '#f97316', rgb: [249, 115, 22] },
+      ];
+
+      const state = {
+        width: 0,
+        height: 0,
+        sceneName: 'Untitled',
+        channels: {
+          beauty: null,
+          matId: null,
+          objId: null,
+          depthRaw: null,
+          depthNormalized: null,
+          alpha: null,
+        },
+        channelNames: { beauty: '', matId: '', objId: '', depth: '', alpha: '' },
+        passPixelCache: { matId: null, objId: null },
+        passLabCache: { matId: null, objId: null },
+        bfsQueue: null,
+        depthStats: { min: 0, max: 255 },
+        autoNormalizeDepth: true,
+        isJpgIdDetected: false,
+        contiguousId: false,
+
+        // Active mask buffers
+        maskData: null,         // Uint8Array (width * height), 0 or 255
+        maskHistory: [],
+        maskOverlayCanvas: null,
+        hasMask: false,
+
+        // Saved Elements Stack (Dual-Prompt Workflow)
+        savedElements: [],      // { id, name, prompt, color, maskData, feather, enabled, pixelCount }
+        nextElementNumber: 1,
+        editingElementId: null,
+        hoveredElementId: null,
+        showSavedOverlays: true,
+        savedOverlayCanvas: null,
+        regionMapCanvas: null,
+
+        // Hover ID highlight preview
+        hoverCanvas: null,
+        hasHoverPreview: false,
+        lastHoverKey: '',
+        hoverRafPending: false,
+
+        // Rendered outputs & iterations
+        rawResultCanvas: null,
+        resultCanvas: null,
+        activeIterationId: 'original',
+        iterations: [],
+
+        // Viewport camera
+        zoom: 1,
+        panX: 0,
+        panY: 0,
+        viewMode: 'beauty',     // 'beauty' | 'matId' | 'objId' | 'depth' | 'alpha' | 'regionMap' | 'result'
+        splitActive: false,
+        splitPos: 0.5,
+
+        // Selection tool settings
+        tool: 'matId',          // 'pan' | 'matId' | 'objId' | 'brush' | 'lasso'
+        selectionMode: 'add',   // 'add' | 'sub'
+        tolerance: 10,          // 1-60 perceptual chroma-weighted (auto 10 for JPG ID, 4 for PNG ID)
+        dilation: 2,            // 0-8px
+        feather: 2,             // 0-8px
+        brushRadius: 36,
+        showMaskOverlay: true,
+
+        // Pointer & Lasso state
+        isDragging: false,
+        isSpaceDown: false,
+        lastPointer: { x: 0, y: 0, imgX: 0, imgY: 0 },
+        cursorImgPos: null,
+        lassoPoints: [],
+
+        // Generation settings
+        resolution: '2k',         // '2k' | '4k' | '8k'
+        executionMode: 'unified', // 'unified' | 'sequential'
+        strictLock: true,
+        geometryRetention: 85,
+        creativity: 45,
+        lockSeed: false,
+        seed: 482910,
+        moodBoardDataUrl: null,
+        isRendering: false,
+        pendingChannelAssign: null,
+        customApiKey: '',
+        modelId: DEFAULT_MODEL_ID,
+      };
+
+      const els = {
+        mainCanvas: document.getElementById('mainCanvas'),
+        viewportContainer: document.getElementById('viewportContainer'),
+        emptyViewportState: document.getElementById('emptyViewportState'),
+        dropOverlay: document.getElementById('dropOverlay'),
+        packageFileInput: document.getElementById('packageFileInput'),
+        singleChannelInput: document.getElementById('singleChannelInput'),
+        moodBoardInput: document.getElementById('moodBoardInput'),
+        brushCursor: document.getElementById('brushCursor'),
+        splitOverlay: document.getElementById('splitOverlay'),
+        splitLine: document.getElementById('splitLine'),
+        renderProgressOverlay: document.getElementById('renderProgressOverlay'),
+        renderStatusText: document.getElementById('renderStatusText'),
+        toastContainer: document.getElementById('toastContainer'),
+
+        // Top bar
+        btnImportPackage: document.getElementById('btnImportPackage'),
+        jpgIdBadge: document.getElementById('jpgIdBadge'),
+        btnToggleMaskOverlay: document.getElementById('btnToggleMaskOverlay'),
+        btnToggleSplit: document.getElementById('btnToggleSplit'),
+        btnOpenSettings: document.getElementById('btnOpenSettings'),
+        apiKeyStatusDot: document.getElementById('apiKeyStatusDot'),
+        activeToolLabel: document.getElementById('activeToolLabel'),
+        optTolerance: document.getElementById('optTolerance'),
+        optDilation: document.getElementById('optDilation'),
+        optFeather: document.getElementById('optFeather'),
+        optBrushSize: document.getElementById('optBrushSize'),
+        optLassoHint: document.getElementById('optLassoHint'),
+        depthNormTopToggle: document.getElementById('depthNormTopToggle'),
+        chkNormalizeDepthTop: document.getElementById('chkNormalizeDepthTop'),
+        depthRangeReadout: document.getElementById('depthRangeReadout'),
+        sliderTolerance: document.getElementById('sliderTolerance'),
+        valTolerance: document.getElementById('valTolerance'),
+        btnContiguousId: document.getElementById('btnContiguousId'),
+        contiguousDot: document.getElementById('contiguousDot'),
+        contiguousLabel: document.getElementById('contiguousLabel'),
+        sliderDilation: document.getElementById('sliderDilation'),
+        valDilation: document.getElementById('valDilation'),
+        sliderFeather: document.getElementById('sliderFeather'),
+        valFeather: document.getElementById('valFeather'),
+        sliderBrushSize: document.getElementById('sliderBrushSize'),
+        valBrushSize: document.getElementById('valBrushSize'),
+        coordText: document.getElementById('coordText'),
+        swatchReadout: document.getElementById('swatchReadout'),
+        zoomLabel: document.getElementById('zoomLabel'),
+        btnZoomOut: document.getElementById('btnZoomOut'),
+        btnZoomIn: document.getElementById('btnZoomIn'),
+        btnFitScreen: document.getElementById('btnFitScreen'),
+
+        // Left toolbar
+        btnModeAdd: document.getElementById('btnModeAdd'),
+        btnModeSub: document.getElementById('btnModeSub'),
+        btnInvertMask: document.getElementById('btnInvertMask'),
+        btnUndoMask: document.getElementById('btnUndoMask'),
+        btnClearMask: document.getElementById('btnClearMask'),
+
+        // Right panel — Dual Prompt & Saved Elements
+        presetPromptSelect: document.getElementById('presetPromptSelect'),
+        presetPurposeNote: document.getElementById('presetPurposeNote'),
+        promptInput: document.getElementById('promptInput'),
+        btnClearPrompt: document.getElementById('btnClearPrompt'),
+        resolutionSelect: document.getElementById('resolutionSelect'),
+        resTierBadge: document.getElementById('resTierBadge'),
+        resHintText: document.getElementById('resHintText'),
+        stagingBox: document.getElementById('stagingBox'),
+        stagingDot: document.getElementById('stagingDot'),
+        stagingTitle: document.getElementById('stagingTitle'),
+        stagingCoverage: document.getElementById('stagingCoverage'),
+        elementNameInput: document.getElementById('elementNameInput'),
+        elementPromptInput: document.getElementById('elementPromptInput'),
+        btnSaveElement: document.getElementById('btnSaveElement'),
+        btnCancelStaging: document.getElementById('btnCancelStaging'),
+        savedElementCount: document.getElementById('savedElementCount'),
+        btnToggleSavedOverlays: document.getElementById('btnToggleSavedOverlays'),
+        savedElementsEmpty: document.getElementById('savedElementsEmpty'),
+        savedElementsList: document.getElementById('savedElementsList'),
+        btnExecUnified: document.getElementById('btnExecUnified'),
+        btnExecSequential: document.getElementById('btnExecSequential'),
+        execModeHint: document.getElementById('execModeHint'),
+        unifiedLimitWarning: document.getElementById('unifiedLimitWarning'),
+        chkStrictLock: document.getElementById('chkStrictLock'),
+        sliderGeometry: document.getElementById('sliderGeometry'),
+        valGeometry: document.getElementById('valGeometry'),
+        depthActivePill: document.getElementById('depthActivePill'),
+        chkNormalizeDepth: document.getElementById('chkNormalizeDepth'),
+        depthNormSubtext: document.getElementById('depthNormSubtext'),
+        sliderCreativity: document.getElementById('sliderCreativity'),
+        valCreativity: document.getElementById('valCreativity'),
+        chkLockSeed: document.getElementById('chkLockSeed'),
+        seedInput: document.getElementById('seedInput'),
+        btnRandomSeed: document.getElementById('btnRandomSeed'),
+        moodBoardZone: document.getElementById('moodBoardZone'),
+        moodBoardPlaceholder: document.getElementById('moodBoardPlaceholder'),
+        moodBoardPreview: document.getElementById('moodBoardPreview'),
+        btnClearMood: document.getElementById('btnClearMood'),
+        btnRender: document.getElementById('btnRender'),
+        btnRenderLabel: document.getElementById('btnRenderLabel'),
+        btnDownload: document.getElementById('btnDownload'),
+
+        // Filmstrip
+        btnToggleFilmstrip: document.getElementById('btnToggleFilmstrip'),
+        filmstripChevron: document.getElementById('filmstripChevron'),
+        filmstripBody: document.getElementById('filmstripBody'),
+        iterationCount: document.getElementById('iterationCount'),
+        sceneNameLabel: document.getElementById('sceneNameLabel'),
+        maskStatsLabel: document.getElementById('maskStatsLabel'),
+
+        // Modal
+        channelModal: document.getElementById('channelModal'),
+        channelModalTitle: document.getElementById('channelModalTitle'),
+        channelModalDesc: document.getElementById('channelModalDesc'),
+        btnCloseChannelModal: document.getElementById('btnCloseChannelModal'),
+        btnInspectChannel: document.getElementById('btnInspectChannel'),
+        btnReassignChannel: document.getElementById('btnReassignChannel'),
+
+        // Settings Modal
+        settingsModal: document.getElementById('settingsModal'),
+        btnCloseSettingsModal: document.getElementById('btnCloseSettingsModal'),
+        apiKeyInput: document.getElementById('apiKeyInput'),
+        btnToggleApiKeyVis: document.getElementById('btnToggleApiKeyVis'),
+        settingsKeyBadge: document.getElementById('settingsKeyBadge'),
+        modelIdInput: document.getElementById('modelIdInput'),
+        btnClearApiKey: document.getElementById('btnClearApiKey'),
+        btnCancelSettings: document.getElementById('btnCancelSettings'),
+        btnSaveSettings: document.getElementById('btnSaveSettings'),
+      };
+
+      const ctx = els.mainCanvas.getContext('2d');
+
+      // =========================================================================
+      // 2. TOASTS & CANVAS HELPERS
+      // =========================================================================
+      function showToast(message, type = 'info') {
+        const colors = {
+          info: 'border-studio-cyan/50 text-gray-100',
+          success: 'border-emerald-500/50 text-emerald-200',
+          warn: 'border-studio-amber/60 text-amber-200',
+          error: 'border-red-500/60 text-red-200',
+        };
+        const div = document.createElement('div');
+        div.className = `toast-enter pointer-events-auto px-4 py-2 rounded-xl bg-studio-panel/95 backdrop-blur-md border ${colors[type] || colors.info} text-xs font-medium shadow-2xl max-w-md`;
+        div.textContent = message;
+        els.toastContainer.appendChild(div);
+        setTimeout(() => {
+          div.style.opacity = '0';
+          div.style.transition = 'opacity 0.25s ease';
+          setTimeout(() => div.remove(), 260);
+        }, 3800);
+      }
+
+      function createOffscreenCanvas(w, h) {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        return c;
+      }
+
+      function getActiveDepthCanvas() {
+        return state.autoNormalizeDepth && state.channels.depthNormalized
+          ? state.channels.depthNormalized
+          : state.channels.depthRaw;
+      }
+
+      // =========================================================================
+      // 3. AUTO NORMALIZE DEPTH PASS (0-255 LUMINANCE STRETCH)
+      // =========================================================================
+      function buildNormalizedDepthPass(rawCanvas) {
+        const W = rawCanvas.width;
+        const H = rawCanvas.height;
+        const srcData = rawCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+
+        let minLum = 255;
+        let maxLum = 0;
+        const total = W * H;
+        const lums = new Uint8Array(total);
+
+        for (let i = 0, p = 0; i < total; i++, p += 4) {
+          const lum = Math.round(0.299 * srcData[p] + 0.587 * srcData[p + 1] + 0.114 * srcData[p + 2]);
+          lums[i] = lum;
+          if (lum < minLum) minLum = lum;
+          if (lum > maxLum) maxLum = lum;
+        }
+
+        state.depthStats = { min: minLum, max: maxLum };
+
+        const normCanvas = createOffscreenCanvas(W, H);
+        const nCtx = normCanvas.getContext('2d');
+        const outImg = nCtx.createImageData(W, H);
+        const out = outImg.data;
+        const span = Math.max(1, maxLum - minLum);
+
+        for (let i = 0, p = 0; i < total; i++, p += 4) {
+          const stretched = Math.round(((lums[i] - minLum) / span) * 255);
+          out[p] = stretched;
+          out[p + 1] = stretched;
+          out[p + 2] = stretched;
+          out[p + 3] = 255;
+        }
+        nCtx.putImageData(outImg, 0, 0);
+
+        els.depthRangeReadout.textContent = `(${minLum}–${maxLum} → 0–255)`;
+        els.depthNormSubtext.textContent = `Raw luminance ${minLum}–${maxLum} → 0–255`;
+        return normCanvas;
+      }
+
+      // =========================================================================
+      // 4. ENSCAPE SUFFIX PARSER & JPG ID DETECTION
+      // =========================================================================
+      function classifyEnscapeFilename(filename) {
+        const lower = filename.toLowerCase();
+        if (/_materialid(?=\.[^.]+$)/.test(lower) || /(materialid|mat_id|mat-id)/.test(lower)) return 'matId';
+        if (/_objectid(?=\.[^.]+$)/.test(lower) || /(objectid|obj_id|obj-id)/.test(lower)) return 'objId';
+        if (/_depth(?=\.[^.]+$)/.test(lower) || /(zdepth|z_depth|_depth)/.test(lower)) return 'depth';
+        if (/_alphamask(?=\.[^.]+$)/.test(lower) || /(_alpha|alphamask|alpha_mask)/.test(lower)) return 'alpha';
+        return 'beauty';
+      }
+
+      function isJpegFilename(name) {
+        return /\.(jpe?g)$/i.test(name || '');
+      }
+
+      function applyIdFormatHeuristics() {
+        const jpgDetected = isJpegFilename(state.channelNames.matId) || isJpegFilename(state.channelNames.objId);
+        state.isJpgIdDetected = jpgDetected;
+        els.jpgIdBadge.classList.toggle('hidden', !jpgDetected);
+        els.jpgIdBadge.classList.toggle('flex', jpgDetected);
+
+        // Tighter perceptual tolerance: 10 for JPG ID passes, 4 for PNG ID passes
+        const recommendedTol = jpgDetected ? 10 : 4;
+        state.tolerance = recommendedTol;
+        els.sliderTolerance.value = recommendedTol;
+        els.valTolerance.textContent = recommendedTol;
+        state.lastHoverKey = '';
+      }
+
+      // Precomputed sRGB -> Linear lookup table for fast Oklab conversion
+      const SRGB_TO_LIN = new Float32Array(256);
+      for (let i = 0; i < 256; i++) {
+        const v = i / 255;
+        SRGB_TO_LIN[i] = v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      }
+
+      // Convert an RGBA pixel buffer to scaled Oklab (L, a, b in ~0..100 / -40..40)
+      function buildOklabCache(rgbaData, pixelCount) {
+        const lab = new Float32Array(pixelCount * 3);
+        for (let i = 0, p = 0, q = 0; i < pixelCount; i++, p += 4, q += 3) {
+          const r = SRGB_TO_LIN[rgbaData[p]];
+          const g = SRGB_TO_LIN[rgbaData[p + 1]];
+          const b = SRGB_TO_LIN[rgbaData[p + 2]];
+
+          const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+          const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+          const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+
+          lab[q]     = (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s) * 100;
+          lab[q + 1] = (1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s) * 100;
+          lab[q + 2] = (0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s) * 100;
+        }
+        return lab;
+      }
+
+      function cacheIdPassPixels() {
+        const total = state.width * state.height;
+        state.bfsQueue = total > 0 ? new Int32Array(total) : null;
+
+        state.passPixelCache.matId = state.channels.matId
+          ? state.channels.matId.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, state.width, state.height).data
+          : null;
+        state.passLabCache.matId = state.passPixelCache.matId
+          ? buildOklabCache(state.passPixelCache.matId, total)
+          : null;
+
+        state.passPixelCache.objId = state.channels.objId
+          ? state.channels.objId.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, state.width, state.height).data
+          : null;
+        state.passLabCache.objId = state.passPixelCache.objId
+          ? buildOklabCache(state.passPixelCache.objId, total)
+          : null;
+      }
+
+      function loadImageFromUrl(url) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error(`Could not load ${url}`));
+          img.src = url;
+        });
+      }
+
+      function loadImageFromFile(file) {
+        return new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Could not decode ${file.name}`)); };
+          img.src = url;
+        });
+      }
+
+      function drawAligned(img, targetW, targetH, smooth = false) {
+        const c = createOffscreenCanvas(targetW, targetH);
+        const cctx = c.getContext('2d');
+        cctx.imageSmoothingEnabled = smooth;
+        cctx.drawImage(img, 0, 0, targetW, targetH);
+        return c;
+      }
+
+      async function handlePackageFiles(fileList) {
+        const files = Array.from(fileList).filter(f => f.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(f.name));
+        if (!files.length) {
+          showToast('No supported image files found (.png, .jpg, .jpeg).', 'warn');
+          return;
+        }
+
+        const classified = {};
+        for (const file of files) {
+          const ch = classifyEnscapeFilename(file.name);
+          if (!classified[ch]) classified[ch] = file;
+        }
+
+        try {
+          if (classified.beauty) {
+            const img = await loadImageFromFile(classified.beauty);
+            state.width = img.naturalWidth;
+            state.height = img.naturalHeight;
+            state.channels.beauty = drawAligned(img, state.width, state.height, true);
+            state.channelNames.beauty = classified.beauty.name;
+            state.sceneName = classified.beauty.name.replace(/\.[^.]+$/, '');
+            state.channels.matId = null;
+            state.channels.objId = null;
+            state.channels.depthRaw = null;
+            state.channels.depthNormalized = null;
+            state.channels.alpha = null;
+            state.channelNames.matId = '';
+            state.channelNames.objId = '';
+            state.channelNames.depth = '';
+            state.channelNames.alpha = '';
+            state.rawResultCanvas = null;
+            state.resultCanvas = null;
+            state.splitActive = false;
+            initMaskBuffers();
+            resetFilmstripWithOriginal();
+          } else if (!state.channels.beauty) {
+            const first = files[0];
+            const img = await loadImageFromFile(first);
+            state.width = img.naturalWidth;
+            state.height = img.naturalHeight;
+            state.channels.beauty = drawAligned(img, state.width, state.height, true);
+            state.channelNames.beauty = first.name;
+            state.sceneName = first.name.replace(/\.[^.]+$/, '');
+            initMaskBuffers();
+            resetFilmstripWithOriginal();
+          }
+
+          const loadedNames = [];
+          if (classified.beauty) loadedNames.push('Beauty');
+
+          for (const ch of ['matId', 'objId', 'depth', 'alpha']) {
+            if (classified[ch]) {
+              const img = await loadImageFromFile(classified[ch]);
+              if (ch === 'depth') {
+                state.channels.depthRaw = drawAligned(img, state.width, state.height, false);
+                state.channels.depthNormalized = buildNormalizedDepthPass(state.channels.depthRaw);
+              } else {
+                state.channels[ch] = drawAligned(img, state.width, state.height, false);
+              }
+              state.channelNames[ch] = classified[ch].name;
+              loadedNames.push(ch === 'matId' ? 'MatID' : ch === 'objId' ? 'ObjID' : ch.charAt(0).toUpperCase() + ch.slice(1));
+            }
+          }
+
+          cacheIdPassPixels();
+          applyIdFormatHeuristics();
+          updateChannelBadges();
+          updateResolutionUI();
+          els.sceneNameLabel.textContent = `Scene: ${state.sceneName}`;
+          setViewMode('beauty');
+          fitToScreen();
+          showToast(`Loaded ${state.sceneName} passes: ${loadedNames.join(', ')} (${state.width}×${state.height})`, 'success');
+        } catch (err) {
+          showToast(`Import failed: ${err.message}`, 'error');
+        }
+      }
+
+      // =========================================================================
+      // 5. DEFAULT MEZZANINE 2 ENSCAPE PACKAGE LOADER
+      // =========================================================================
+      async function loadMezzanine2Sample() {
+        const files = {
+          beauty: 'Mezzanine 2.jpg',
+          matId: 'Mezzanine 2_materialId.jpg',
+          objId: 'Mezzanine 2_objectId.jpg',
+          depth: 'Mezzanine 2_depth.jpg',
+          alpha: 'Mezzanine 2_alphaMask.jpg',
+        };
+
+        try {
+          const beautyImg = await loadImageFromUrl(encodeURI(files.beauty));
+          state.width = beautyImg.naturalWidth;
+          state.height = beautyImg.naturalHeight;
+          state.sceneName = 'Mezzanine 2';
+          state.channels.beauty = drawAligned(beautyImg, state.width, state.height, true);
+          state.channelNames.beauty = files.beauty;
+
+          const loadOptional = async (key) => {
+            try {
+              const im = await loadImageFromUrl(encodeURI(files[key]));
+              if (key === 'depth') {
+                state.channels.depthRaw = drawAligned(im, state.width, state.height, false);
+                state.channels.depthNormalized = buildNormalizedDepthPass(state.channels.depthRaw);
+              } else {
+                state.channels[key] = drawAligned(im, state.width, state.height, false);
+              }
+              state.channelNames[key] = files[key];
+            } catch (_) { /* optional pass missing */ }
+          };
+
+          await Promise.all([
+            loadOptional('matId'),
+            loadOptional('objId'),
+            loadOptional('depth'),
+            loadOptional('alpha')
+          ]);
+
+          finalizeMezzanineLoad('Loaded Mezzanine 2 Enscape JPG package (5 passes). Auto-normalized depth & JPG tolerance enabled.');
+          return;
+        } catch (_) {
+          // Fallback to procedural Mezzanine 2 matching the uploaded auditorium scene
+          buildProceduralMezzanine2();
+          finalizeMezzanineLoad('Loaded Mezzanine 2 default package (5 Enscape passes). Drop your local JPG/PNG files anytime to swap.');
+        }
+      }
+
+      function finalizeMezzanineLoad(toastMsg) {
+        state.rawResultCanvas = null;
+        state.resultCanvas = null;
+        state.splitActive = false;
+        els.btnDownload.disabled = true;
+        initMaskBuffers();
+        cacheIdPassPixels();
+        applyIdFormatHeuristics();
+        updateChannelBadges();
+        updateResolutionUI();
+        resetFilmstripWithOriginal();
+        els.sceneNameLabel.textContent = `Scene: ${state.sceneName}`;
+        setViewMode('beauty');
+        setTool('matId');
+        fitToScreen();
+        showToast(toastMsg, 'success');
+      }
+
+      function buildProceduralMezzanine2() {
+        const W = 1280;
+        const H = 720;
+        state.width = W;
+        state.height = H;
+        state.sceneName = 'Mezzanine 2';
+
+        const beauty = createOffscreenCanvas(W, H);
+        const matId = createOffscreenCanvas(W, H);
+        const objId = createOffscreenCanvas(W, H);
+        const depthRaw = createOffscreenCanvas(W, H);
+        const alpha = createOffscreenCanvas(W, H);
+
+        const b = beauty.getContext('2d');
+        const m = matId.getContext('2d');
+        const o = objId.getContext('2d');
+        const d = depthRaw.getContext('2d');
+        const a = alpha.getContext('2d');
+
+        m.imageSmoothingEnabled = false;
+        o.imageSmoothingEnabled = false;
+
+        const poly = (c, pts, fill) => {
+          c.beginPath();
+          pts.forEach((p, i) => (i === 0 ? c.moveTo(p[0], p[1]) : c.lineTo(p[0], p[1])));
+          c.closePath();
+          c.fillStyle = fill;
+          c.fill();
+        };
+
+        // Alpha pass: interior view is solid white like Mezzanine 2_alphaMask.jpg
+        a.fillStyle = '#ffffff';
+        a.fillRect(0, 0, W, H);
+
+        // Depth pass: simulate Enscape interior near-white compressed depth (luminance 236..255)
+        d.fillStyle = 'rgb(240,240,240)';
+        d.fillRect(0, 0, W, H);
+
+        // 1. DARK ACOUSTIC CEILING DECK
+        b.fillStyle = '#0c0d0f'; b.fillRect(0, 0, W, 320);
+        m.fillStyle = '#1f7a72'; m.fillRect(0, 0, W, 320);
+        o.fillStyle = '#2d7a64'; o.fillRect(0, 0, W, 320);
+
+        // Structural roof trusses (light steel)
+        const leftTruss = [[0, 390], [540, 175], [580, 215], [0, 445]];
+        poly(b, leftTruss, '#3c3f44');
+        poly(m, leftTruss, '#cde3d2');
+        poly(o, leftTruss, '#4c803b');
+        poly(d, leftTruss, 'rgb(246,246,246)');
+
+        const rightTruss = [[855, 165], [1280, 180], [1280, 255], [840, 230]];
+        poly(b, rightTruss, '#3a3c40');
+        poly(m, rightTruss, '#cde3d2');
+        poly(o, rightTruss, '#54853a');
+        poly(d, rightTruss, 'rgb(249,249,249)');
+
+        // 2. WALLS (Left Gypsum, Center Cyan Lounge Alcove, Right Gypsum, Far Right Dark Accent)
+        const leftWall = [[0, 395], [545, 240], [545, 515], [0, 515]];
+        const lwGrad = b.createLinearGradient(0, 250, 545, 515);
+        lwGrad.addColorStop(0, '#eae7e1'); lwGrad.addColorStop(1, '#c5c2bc');
+        poly(b, leftWall, lwGrad);
+        poly(m, leftWall, '#b59b38');
+        poly(o, leftWall, '#8a7a7c');
+        poly(d, leftWall, 'rgb(239,239,239)');
+
+        // Center Teal/Cyan Backlit Alcove
+        const alcove = [[545, 225], [730, 225], [730, 480], [545, 480]];
+        const alcGrad = b.createLinearGradient(545, 225, 545, 480);
+        alcGrad.addColorStop(0, '#0c2730');
+        alcGrad.addColorStop(0.55, '#4b8698');
+        alcGrad.addColorStop(1, '#79a8b8');
+        poly(b, alcove, alcGrad);
+        poly(m, alcove, '#e134b8');
+        poly(o, alcove, '#c993db');
+        poly(d, alcove, 'rgb(236,236,236)');
+
+        // Pendant lights inside alcove
+        for (let i = 0; i < 6; i++) {
+          const px = 575 + i * 26;
+          const py = 350 + (i % 2) * 14;
+          b.fillStyle = '#f8fafc'; b.fillRect(px, py, 3, 44);
+          m.fillStyle = '#ffffff'; m.fillRect(px, py, 3, 44);
+          o.fillStyle = '#c83e4d'; o.fillRect(px, py, 3, 44);
+        }
+
+        // Right Main Wall
+        const rightWall = [[730, 228], [1225, 255], [1225, 520], [730, 520]];
+        const rwGrad = b.createLinearGradient(730, 230, 1225, 520);
+        rwGrad.addColorStop(0, '#e5e3de'); rwGrad.addColorStop(1, '#b7b5b0');
+        poly(b, rightWall, rwGrad);
+        poly(m, rightWall, '#f97040');
+        poly(o, rightWall, '#a89cf5');
+        poly(d, rightWall, 'rgb(242,242,242)');
+
+        // Far Right Dark Wall
+        const farRight = [[1225, 255], [1280, 258], [1280, 520], [1225, 520]];
+        poly(b, farRight, '#2b2a29');
+        poly(m, farRight, '#3b1d7a');
+        poly(o, farRight, '#e8a2b8');
+        poly(d, farRight, 'rgb(246,246,246)');
+
+        // 3. LEFT & RIGHT PROJECTION SCREENS
+        const screenL = [[338, 324], [454, 322], [454, 412], [338, 410]];
+        poly(b, screenL, '#5b5b5c');
+        poly(m, screenL, '#aec4b6');
+        poly(o, screenL, '#736570');
+        poly(d, screenL, 'rgb(241,241,241)');
+
+        const screenR = [[865, 294], [1132, 290], [1132, 424], [865, 422]];
+        poly(b, screenR, '#3f3f42');
+        poly(m, screenR, '#aec4b6');
+        poly(o, screenR, '#58627a');
+        poly(d, screenR, 'rgb(244,244,244)');
+
+        // 4. PROMINENT WHITE CEILING FASCIA BEAMS (Foreground)
+        const leftBeam = [[0, 125], [538, 285], [538, 328], [0, 252]];
+        const lbGrad = b.createLinearGradient(0, 125, 538, 328);
+        lbGrad.addColorStop(0, '#dad6cf'); lbGrad.addColorStop(1, '#bdb9b2');
+        poly(b, leftBeam, lbGrad);
+        poly(m, leftBeam, '#f2b179');
+        poly(o, leftBeam, '#a64d61');
+        poly(d, leftBeam, 'rgb(252,252,252)');
+
+        const mainBeam = [[255, 0], [880, 0], [850, 315], [735, 315]];
+        const mbGrad = b.createLinearGradient(255, 0, 880, 315);
+        mbGrad.addColorStop(0, '#e3e0da'); mbGrad.addColorStop(1, '#c9c5be');
+        poly(b, mainBeam, mbGrad);
+        poly(m, mainBeam, '#f2b179');
+        poly(o, mainBeam, '#7d684c');
+        poly(d, mainBeam, 'rgb(255,255,255)');
+
+        // Cylinder Downlights
+        const lights = [[370, 252, 16, 22], [1010, 174, 24, 34], [930, 275, 14, 18]];
+        lights.forEach(([lx, ly, lw, lh], idx) => {
+          b.fillStyle = '#18181b'; b.fillRect(lx, ly, lw, lh);
+          b.fillStyle = '#fff9eb'; b.beginPath(); b.ellipse(lx + lw / 2, ly + lh, lw / 2, 4, 0, 0, Math.PI * 2); b.fill();
+          m.fillStyle = '#22f2e8'; m.fillRect(lx, ly, lw, lh);
+          o.fillStyle = idx === 0 ? '#5cf287' : '#858c7e'; o.fillRect(lx, ly, lw, lh);
+        });
+
+        // 5. MEZZANINE LOWER BALCONY & STAIRS
+        const leftStairWall = [[125, 515], [456, 515], [456, 720], [125, 720]];
+        poly(b, leftStairWall, '#c7c3bc');
+        poly(m, leftStairWall, '#3b82c4');
+        poly(o, leftStairWall, '#dfe8c8');
+        poly(d, leftStairWall, 'rgb(248,248,248)');
+
+        // Center dark under-balcony recess
+        const underBalcony = [[456, 530], [675, 550], [640, 700], [456, 660]];
+        poly(b, underBalcony, '#232224');
+        poly(m, underBalcony, '#3d2278');
+        poly(o, underBalcony, '#ced6b8');
+        poly(d, underBalcony, 'rgb(245,245,245)');
+
+        // Teal Glass Balustrade Balcony (Center)
+        const centerBalcony = [[384, 474], [674, 496], [670, 560], [384, 525]];
+        const balcGrad = b.createLinearGradient(384, 474, 384, 560);
+        balcGrad.addColorStop(0, '#9fc4cf'); balcGrad.addColorStop(1, '#4c7b8a');
+        poly(b, centerBalcony, balcGrad);
+        poly(m, centerBalcony, '#d948b8');
+        poly(o, centerBalcony, '#c9887d');
+        poly(d, centerBalcony, 'rgb(249,249,249)');
+
+        // Center Staircase
+        const centerStairs = [[680, 500], [748, 500], [710, 720], [610, 720]];
+        poly(b, centerStairs, '#8a8680');
+        poly(m, centerStairs, '#b8a246');
+        poly(o, centerStairs, '#598cf0');
+        poly(d, centerStairs, 'rgb(250,250,250)');
+        b.strokeStyle = 'rgba(20,20,22,0.35)';
+        for (let y = 515; y < 715; y += 12) {
+          b.beginPath(); b.moveTo(640, y); b.lineTo(735, y); b.stroke();
+        }
+
+        // 6. TIERED SEATING DECKS & CAFE TABLES (Left & Right)
+        const drawSeatingTier = (x1, y1, x2, y2, objTierColor, depthVal) => {
+          const pts = [[x1, y1], [x2, y1 + 14], [x2, y2 + 14], [x1, y2]];
+          poly(b, pts, '#2c2926');
+          poly(m, pts, '#aef2d8');
+          poly(o, pts, objTierColor);
+          poly(d, pts, `rgb(${depthVal},${depthVal},${depthVal})`);
+
+          // Top handrail
+          b.strokeStyle = '#6b7280'; b.lineWidth = 3;
+          b.beginPath(); b.moveTo(x1, y1); b.lineTo(x2, y1 + 14); b.stroke();
+
+          // Cafe tables along tier
+          const cols = Math.max(3, Math.floor((x2 - x1) / 88));
+          for (let i = 0; i < cols; i++) {
+            const tx = x1 + 36 + i * ((x2 - x1 - 70) / Math.max(1, cols - 1));
+            const ty = y1 + 26 + (i / cols) * 10;
+            b.fillStyle = '#7c5d3b';
+            b.beginPath(); b.ellipse(tx, ty, 22, 9, 0, 0, Math.PI * 2); b.fill();
+            b.fillStyle = '#18181b';
+            b.fillRect(tx - 3, ty + 8, 6, 20);
+            m.fillStyle = '#9aa8b8';
+            m.beginPath(); m.ellipse(tx, ty, 22, 9, 0, 0, Math.PI * 2); m.fill();
+            o.fillStyle = i % 2 === 0 ? '#42b883' : '#e07a5f';
+            o.beginPath(); o.ellipse(tx, ty, 22, 9, 0, 0, Math.PI * 2); o.fill();
+          }
+        };
+
+        // Right Mezzanine Tiers
+        drawSeatingTier(765, 480, 1135, 545, '#b84fd6', 246);
+        drawSeatingTier(750, 565, 1190, 640, '#a13bc4', 250);
+        drawSeatingTier(728, 650, 1255, 720, '#892fb0', 253);
+
+        // Left Mezzanine Tiers
+        drawSeatingTier(0, 485, 340, 550, '#d65fd1', 247);
+        drawSeatingTier(0, 565, 290, 640, '#8ce05a', 251);
+
+        state.channels.beauty = beauty;
+        state.channels.matId = matId;
+        state.channels.objId = objId;
+        state.channels.depthRaw = depthRaw;
+        state.channels.depthNormalized = buildNormalizedDepthPass(depthRaw);
+        state.channels.alpha = alpha;
+
+        state.channelNames = {
+          beauty: 'Mezzanine 2.jpg',
+          matId: 'Mezzanine 2_materialId.jpg',
+          objId: 'Mezzanine 2_objectId.jpg',
+          depth: 'Mezzanine 2_depth.jpg',
+          alpha: 'Mezzanine 2_alphaMask.jpg',
+        };
+      }
+
+      // =========================================================================
+      // 6. VIEWPORT RENDERING & CAMERA CONTROLS
+      // =========================================================================
+      function resizeViewportCanvas() {
+        const rect = els.viewportContainer.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        els.mainCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
+        els.mainCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        renderViewport();
+      }
+
+      function fitToScreen() {
+        if (!state.width || !state.height) return;
+        const rect = els.viewportContainer.getBoundingClientRect();
+        const pad = 42;
+        const availW = Math.max(100, rect.width - pad * 2);
+        const availH = Math.max(100, rect.height - pad * 2);
+        state.zoom = Math.min(availW / state.width, availH / state.height);
+        state.panX = (rect.width - state.width * state.zoom) / 2;
+        state.panY = (rect.height - state.height * state.zoom) / 2;
+        updateZoomLabel();
+        renderViewport();
+      }
+
+      function updateZoomLabel() {
+        els.zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
+      }
+
+      function screenToImage(clientX, clientY) {
+        const rect = els.viewportContainer.getBoundingClientRect();
+        const sx = clientX - rect.left;
+        const sy = clientY - rect.top;
+        return {
+          x: (sx - state.panX) / state.zoom,
+          y: (sy - state.panY) / state.zoom,
+          sx,
+          sy
+        };
+      }
+
+      function renderViewport() {
+        const rect = els.viewportContainer.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        els.emptyViewportState.classList.toggle('hidden', Boolean(state.channels.beauty));
+        if (!state.channels.beauty) return;
+
+        const drawW = state.width * state.zoom;
+        const drawH = state.height * state.zoom;
+
+        // Artboard shadow
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+        ctx.shadowBlur = 24;
+        ctx.fillStyle = '#0a0c0e';
+        ctx.fillRect(state.panX, state.panY, drawW, drawH);
+        ctx.restore();
+
+        const drawSrc = (src) => {
+          if (!src) return;
+          ctx.imageSmoothingEnabled = state.zoom < 2.5;
+          ctx.drawImage(src, state.panX, state.panY, drawW, drawH);
+        };
+
+        if (state.splitActive && state.resultCanvas) {
+          els.splitOverlay.classList.remove('hidden');
+          const splitX = rect.width * state.splitPos;
+
+          ctx.save();
+          ctx.beginPath(); ctx.rect(0, 0, splitX, rect.height); ctx.clip();
+          drawSrc(state.channels.beauty);
+          ctx.restore();
+
+          ctx.save();
+          ctx.beginPath(); ctx.rect(splitX, 0, rect.width - splitX, rect.height); ctx.clip();
+          drawSrc(state.resultCanvas);
+          ctx.restore();
+        } else {
+          els.splitOverlay.classList.add('hidden');
+          let source = state.channels.beauty;
+          if (state.viewMode === 'result' && state.resultCanvas) source = state.resultCanvas;
+          else if (state.viewMode === 'matId' && state.channels.matId) source = state.channels.matId;
+          else if (state.viewMode === 'objId' && state.channels.objId) source = state.channels.objId;
+          else if (state.viewMode === 'depth') source = getActiveDepthCanvas() || state.channels.beauty;
+          else if (state.viewMode === 'alpha' && state.channels.alpha) source = state.channels.alpha;
+          else if (state.viewMode === 'regionMap' && state.regionMapCanvas) source = state.regionMapCanvas;
+          drawSrc(source);
+        }
+
+        // Saved Elements Translucent Color Overlays (hidden in Region Map or Split view)
+        if (state.showSavedOverlays && state.savedOverlayCanvas && state.savedElements.length > 0 && !state.splitActive && state.viewMode !== 'regionMap') {
+          ctx.drawImage(state.savedOverlayCanvas, state.panX, state.panY, drawW, drawH);
+        }
+
+        // Active Selection Mask Overlay
+        if (state.showMaskOverlay && state.hasMask && state.maskOverlayCanvas && !state.splitActive) {
+          ctx.drawImage(state.maskOverlayCanvas, state.panX, state.panY, drawW, drawH);
+        }
+
+        // Hover Preview Highlight (Material ID / Object ID)
+        if (state.hasHoverPreview && state.hoverCanvas && !state.splitActive && (state.tool === 'matId' || state.tool === 'objId')) {
+          ctx.drawImage(state.hoverCanvas, state.panX, state.panY, drawW, drawH);
+        }
+
+        // Active Polygon Lasso Overlay
+        if (state.tool === 'lasso' && state.lassoPoints.length > 0) {
+          ctx.save();
+          ctx.beginPath();
+          state.lassoPoints.forEach((pt, idx) => {
+            const px = state.panX + pt.x * state.zoom;
+            const py = state.panY + pt.y * state.zoom;
+            if (idx === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          });
+          if (state.cursorImgPos) {
+            ctx.lineTo(state.panX + state.cursorImgPos.x * state.zoom, state.panY + state.cursorImgPos.y * state.zoom);
+          }
+          const col = state.selectionMode === 'sub' ? '#f59e0b' : '#00d2ff';
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 4]);
+          ctx.stroke();
+
+          // Draw polygon vertices
+          ctx.setLineDash([]);
+          state.lassoPoints.forEach((pt, idx) => {
+            const px = state.panX + pt.x * state.zoom;
+            const py = state.panY + pt.y * state.zoom;
+            ctx.beginPath();
+            ctx.arc(px, py, idx === 0 ? 5 : 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = idx === 0 ? '#ffffff' : col;
+            ctx.fill();
+            ctx.strokeStyle = '#121417';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          });
+          ctx.restore();
+        }
+      }
+
+      // =========================================================================
+      // 7. MASK ENGINE (ID PICKING, HOVER PREVIEW, DILATION, BRUSH, POLYGON LASSO)
+      // =========================================================================
+      function sampleCleanSeedLab(lab, W, H, ix, iy, thresholdSq) {
+        const centerQ = (iy * W + ix) * 3;
+        const cL = lab[centerQ], cA = lab[centerQ + 1], cB = lab[centerQ + 2];
+
+        const Ls = [], As = [], Bs = [];
+        const y0 = Math.max(0, iy - 1), y1 = Math.min(H - 1, iy + 1);
+        const x0 = Math.max(0, ix - 1), x1 = Math.min(W - 1, ix + 1);
+        for (let y = y0; y <= y1; y++) {
+          const row = y * W;
+          for (let x = x0; x <= x1; x++) {
+            const q = (row + x) * 3;
+            Ls.push(lab[q]);
+            As.push(lab[q + 1]);
+            Bs.push(lab[q + 2]);
+          }
+        }
+        Ls.sort((a, b) => a - b);
+        As.sort((a, b) => a - b);
+        Bs.sort((a, b) => a - b);
+        const mid = Ls.length >> 1;
+        const mL = Ls[mid], mA = As[mid], mB = Bs[mid];
+
+        const dL = (cL - mL) * 0.85;
+        const dA = (cA - mA) * 3.0;
+        const dB = (cB - mB) * 3.0;
+        if (dL * dL + dA * dA + dB * dB <= thresholdSq) {
+          return [mL, mA, mB];
+        }
+        return [cL, cA, cB];
+      }
+
+      function computeIdRegionMask(ix, iy, passKey, contiguous) {
+        const lab = state.passLabCache[passKey];
+        if (!lab) return null;
+
+        const W = state.width;
+        const H = state.height;
+        const total = W * H;
+        const threshold = state.tolerance * 0.9;
+        const thresholdSq = threshold * threshold;
+
+        const [tL, tA, tB] = sampleCleanSeedLab(lab, W, H, ix, iy, thresholdSq);
+        const region = new Uint8Array(total);
+        let matched = 0;
+
+        if (contiguous) {
+          const queue = state.bfsQueue && state.bfsQueue.length === total ? state.bfsQueue : new Int32Array(total);
+          const startIdx = iy * W + ix;
+          let head = 0, tail = 0;
+          region[startIdx] = 255;
+          queue[tail++] = startIdx;
+          matched = 1;
+
+          while (head < tail) {
+            const cur = queue[head++];
+            const cx = cur % W;
+            const cy = (cur - cx) / W;
+
+            const checkNeighbor = (nIdx) => {
+              if (region[nIdx]) return;
+              const q = nIdx * 3;
+              const dL = (lab[q] - tL) * 0.85;
+              const dA = (lab[q + 1] - tA) * 3.0;
+              const dB = (lab[q + 2] - tB) * 3.0;
+              if (dL * dL + dA * dA + dB * dB <= thresholdSq) {
+                region[nIdx] = 255;
+                queue[tail++] = nIdx;
+                matched++;
+              }
+            };
+
+            if (cx > 0) checkNeighbor(cur - 1);
+            if (cx < W - 1) checkNeighbor(cur + 1);
+            if (cy > 0) checkNeighbor(cur - W);
+            if (cy < H - 1) checkNeighbor(cur + W);
+          }
+        } else {
+          for (let i = 0, q = 0; i < total; i++, q += 3) {
+            const dL = (lab[q] - tL) * 0.85;
+            const dA = (lab[q + 1] - tA) * 3.0;
+            const dB = (lab[q + 2] - tB) * 3.0;
+            if (dL * dL + dA * dA + dB * dB <= thresholdSq) {
+              region[i] = 255;
+              matched++;
+            }
+          }
+
+          if (state.isJpgIdDetected && matched > 20) {
+            const cleaned = new Uint8Array(total);
+            let cleanCount = 0;
+            for (let y = 1; y < H - 1; y++) {
+              const row = y * W;
+              for (let x = 1; x < W - 1; x++) {
+                const idx = row + x;
+                if (!region[idx]) continue;
+                let n = 0;
+                if (region[idx - 1]) n++;
+                if (region[idx + 1]) n++;
+                if (region[idx - W]) n++;
+                if (region[idx + W]) n++;
+                if (n >= 2) {
+                  cleaned[idx] = 255;
+                  cleanCount++;
+                }
+              }
+            }
+            if (cleanCount > 0) {
+              return { region: cleaned, matched: cleanCount };
+            }
+          }
+        }
+
+        return { region, matched };
+      }
+
+      function initMaskBuffers() {
+        const len = state.width * state.height;
+        state.maskData = new Uint8Array(len);
+        state.maskHistory = [];
+        state.maskOverlayCanvas = createOffscreenCanvas(state.width, state.height);
+        state.hoverCanvas = createOffscreenCanvas(state.width, state.height);
+        state.savedOverlayCanvas = createOffscreenCanvas(state.width, state.height);
+        state.regionMapCanvas = createOffscreenCanvas(state.width, state.height);
+        state.hasMask = false;
+        state.hasHoverPreview = false;
+        state.lastHoverKey = '';
+        state.savedElements = [];
+        state.nextElementNumber = 1;
+        state.editingElementId = null;
+        state.hoveredElementId = null;
+        rebuildSavedElementsCanvases();
+        renderSavedElementsList();
+        updateMaskOverlayAndStats();
+      }
+
+      function pushMaskUndo() {
+        if (!state.maskData) return;
+        state.maskHistory.push(new Uint8Array(state.maskData));
+        if (state.maskHistory.length > 20) state.maskHistory.shift();
+      }
+
+      function undoMask() {
+        if (!state.maskHistory.length) { showToast('Nothing to undo.', 'info'); return; }
+        state.maskData = state.maskHistory.pop();
+        updateMaskOverlayAndStats();
+        renderViewport();
+      }
+
+      function clearMask() {
+        if (state.lassoPoints.length) {
+          state.lassoPoints = [];
+          renderViewport();
+          return;
+        }
+        if (state.editingElementId) {
+          state.editingElementId = null;
+          els.elementNameInput.value = '';
+          els.elementPromptInput.value = '';
+        }
+        if (!state.maskData || !state.hasMask) {
+          updateStagingBoxUI();
+          return;
+        }
+        pushMaskUndo();
+        state.maskData.fill(0);
+        updateMaskOverlayAndStats();
+        renderViewport();
+      }
+
+      function invertMask() {
+        if (!state.maskData) return;
+        pushMaskUndo();
+        const m = state.maskData;
+        for (let i = 0; i < m.length; i++) m[i] = m[i] ? 0 : 255;
+        updateMaskOverlayAndStats();
+        renderViewport();
+      }
+
+      function updateHoverPreview(imgX, imgY, effectiveMode) {
+        const passKey = state.tool === 'matId' ? 'matId' : state.tool === 'objId' ? 'objId' : null;
+        if (!passKey || !state.passLabCache[passKey]) {
+          clearHoverPreview();
+          return;
+        }
+        const ix = Math.floor(imgX);
+        const iy = Math.floor(imgY);
+        if (ix < 0 || ix >= state.width || iy < 0 || iy >= state.height) {
+          clearHoverPreview();
+          return;
+        }
+
+        const key = `${passKey}:${ix}:${iy}:${state.tolerance}:${state.contiguousId ? 1 : 0}:${effectiveMode}`;
+        if (key === state.lastHoverKey) return;
+        state.lastHoverKey = key;
+
+        const res = computeIdRegionMask(ix, iy, passKey, state.contiguousId);
+        if (!res || res.matched === 0) {
+          clearHoverPreview();
+          return;
+        }
+
+        const W = state.width;
+        const H = state.height;
+        const hCtx = state.hoverCanvas.getContext('2d');
+        const imgData = hCtx.createImageData(W, H);
+        const out = imgData.data;
+        const reg = res.region;
+        const isSub = effectiveMode === 'sub';
+        const r = isSub ? 245 : 0;
+        const g = isSub ? 158 : 210;
+        const b = isSub ? 11 : 255;
+
+        for (let i = 0, p = 0; i < reg.length; i++, p += 4) {
+          if (reg[i]) {
+            out[p] = r;
+            out[p + 1] = g;
+            out[p + 2] = b;
+            out[p + 3] = 95;
+          }
+        }
+        hCtx.putImageData(imgData, 0, 0);
+        state.hasHoverPreview = true;
+        renderViewport();
+      }
+
+      function clearHoverPreview() {
+        if (!state.hasHoverPreview) return;
+        state.hasHoverPreview = false;
+        state.lastHoverKey = '';
+        renderViewport();
+      }
+
+      function dilateBinaryMask(src, W, H, radius) {
+        if (radius <= 0) return src;
+        const temp = new Uint8Array(W * H);
+        const dst = new Uint8Array(W * H);
+
+        for (let y = 0; y < H; y++) {
+          const row = y * W;
+          let count = 0;
+          const endInit = Math.min(W - 1, radius);
+          for (let x = 0; x <= endInit; x++) if (src[row + x]) count++;
+          for (let x = 0; x < W; x++) {
+            temp[row + x] = count > 0 ? 255 : 0;
+            const leave = x - radius;
+            const enter = x + radius + 1;
+            if (leave >= 0 && src[row + leave]) count--;
+            if (enter < W && src[row + enter]) count++;
+          }
+        }
+
+        for (let x = 0; x < W; x++) {
+          let count = 0;
+          const endInit = Math.min(H - 1, radius);
+          for (let y = 0; y <= endInit; y++) if (temp[y * W + x]) count++;
+          for (let y = 0; y < H; y++) {
+            dst[y * W + x] = count > 0 ? 255 : 0;
+            const leave = y - radius;
+            const enter = y + radius + 1;
+            if (leave >= 0 && temp[leave * W + x]) count--;
+            if (enter < H && temp[enter * W + x]) count++;
+          }
+        }
+        return dst;
+      }
+
+      function pickIdPassAt(imgX, imgY, passKey, modeOverride) {
+        if (!state.passLabCache[passKey]) {
+          showToast(`No ${passKey === 'matId' ? 'Material ID' : 'Object ID'} pass loaded.`, 'warn');
+          return;
+        }
+        const ix = Math.floor(imgX);
+        const iy = Math.floor(imgY);
+        if (ix < 0 || ix >= state.width || iy < 0 || iy >= state.height) return;
+
+        const res = computeIdRegionMask(ix, iy, passKey, state.contiguousId);
+        if (!res || res.matched === 0) return;
+
+        pushMaskUndo();
+        const dilated = dilateBinaryMask(res.region, state.width, state.height, state.dilation);
+        const mode = modeOverride || state.selectionMode;
+        const m = state.maskData;
+
+        if (mode === 'replace') {
+          m.set(dilated);
+        } else if (mode === 'add') {
+          for (let i = 0; i < m.length; i++) if (dilated[i]) m[i] = 255;
+        } else if (mode === 'sub') {
+          for (let i = 0; i < m.length; i++) if (dilated[i]) m[i] = 0;
+        }
+
+        updateMaskOverlayAndStats();
+        renderViewport();
+      }
+
+      function paintBrushSegment(x0, y0, x1, y1, mode) {
+        if (!state.maskData) return;
+        const W = state.width;
+        const H = state.height;
+        const r = Math.max(1, Math.round(state.brushRadius / state.zoom));
+        const rSq = r * r;
+        const setVal = mode === 'sub' ? 0 : 255;
+        const m = state.maskData;
+
+        const dist = Math.hypot(x1 - x0, y1 - y0);
+        const steps = Math.max(1, Math.ceil(dist / Math.max(1, r * 0.28)));
+
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          const cx = Math.round(x0 + (x1 - x0) * t);
+          const cy = Math.round(y0 + (y1 - y0) * t);
+          const minY = Math.max(0, cy - r);
+          const maxY = Math.min(H - 1, cy + r);
+          const minX = Math.max(0, cx - r);
+          const maxX = Math.min(W - 1, cx + r);
+
+          for (let y = minY; y <= maxY; y++) {
+            const dy = y - cy;
+            const dySq = dy * dy;
+            const row = y * W;
+            for (let x = minX; x <= maxX; x++) {
+              const dx = x - cx;
+              if (dx * dx + dySq <= rSq) m[row + x] = setVal;
+            }
+          }
+        }
+        updateMaskOverlayAndStats();
+        renderViewport();
+      }
+
+      function closePolygonLasso() {
+        if (state.lassoPoints.length < 3 || !state.maskData) {
+          state.lassoPoints = [];
+          renderViewport();
+          return;
+        }
+        pushMaskUndo();
+        const temp = createOffscreenCanvas(state.width, state.height);
+        const tCtx = temp.getContext('2d');
+        tCtx.fillStyle = '#ffffff';
+        tCtx.beginPath();
+        state.lassoPoints.forEach((pt, idx) => {
+          if (idx === 0) tCtx.moveTo(pt.x, pt.y);
+          else tCtx.lineTo(pt.x, pt.y);
+        });
+        tCtx.closePath();
+        tCtx.fill();
+
+        const data = tCtx.getImageData(0, 0, state.width, state.height).data;
+        const setVal = state.selectionMode === 'sub' ? 0 : 255;
+        const m = state.maskData;
+        for (let i = 0, p = 0; i < m.length; i++, p += 4) {
+          if (data[p + 3] > 127) m[i] = setVal;
+        }
+        state.lassoPoints = [];
+        updateMaskOverlayAndStats();
+        renderViewport();
+      }
+
+      function updateMaskOverlayAndStats() {
+        if (!state.maskData || !state.maskOverlayCanvas) return;
+        const W = state.width;
+        const H = state.height;
+        const m = state.maskData;
+        const oCtx = state.maskOverlayCanvas.getContext('2d');
+        const imgData = oCtx.createImageData(W, H);
+        const out = imgData.data;
+
+        let count = 0;
+        for (let i = 0, p = 0; i < m.length; i++, p += 4) {
+          if (m[i]) {
+            count++;
+            out[p] = 0;
+            out[p + 1] = 210;
+            out[p + 2] = 255;
+            out[p + 3] = 115;
+          }
+        }
+        oCtx.putImageData(imgData, 0, 0);
+
+        state.hasMask = count > 0;
+        const pct = ((count / Math.max(1, W * H)) * 100).toFixed(1);
+        els.maskStatsLabel.textContent = `Mask: ${pct}% selected`;
+        els.stagingCoverage.textContent = `${pct}%`;
+        updateStagingBoxUI();
+      }
+
+      // =========================================================================
+      // 8. DUAL-PROMPT & SAVED ELEMENTS STACK
+      // =========================================================================
+      function updateStagingBoxUI() {
+        const show = state.hasMask || Boolean(state.editingElementId);
+        els.stagingBox.classList.toggle('hidden', !show);
+        if (!show) return;
+
+        if (state.editingElementId) {
+          const existing = state.savedElements.find(el => el.id === state.editingElementId);
+          els.stagingTitle.textContent = existing ? `Editing: ${existing.name}` : 'Editing Element';
+          els.btnSaveElement.textContent = 'Update Element';
+        } else {
+          els.stagingTitle.textContent = 'Active Selection';
+          els.btnSaveElement.textContent = 'Save Element';
+          if (!els.elementNameInput.value.trim()) {
+            els.elementNameInput.placeholder = `Element ${state.nextElementNumber}`;
+          }
+        }
+      }
+
+      function saveCurrentElement() {
+        if (!state.hasMask) {
+          showToast('Select a region on the canvas first.', 'warn');
+          return;
+        }
+        const promptText = els.elementPromptInput.value.trim();
+        if (!promptText) {
+          showToast('Enter a direction for this selected element before saving.', 'warn');
+          els.elementPromptInput.focus();
+          return;
+        }
+
+        const newMask = new Uint8Array(state.maskData);
+        let pixelCount = 0;
+        for (let i = 0; i < newMask.length; i++) if (newMask[i]) pixelCount++;
+
+        state.savedElements.forEach(el => {
+          if (el.id === state.editingElementId) return;
+          let remaining = 0;
+          for (let i = 0; i < el.maskData.length; i++) {
+            if (newMask[i]) el.maskData[i] = 0;
+            if (el.maskData[i]) remaining++;
+          }
+          el.pixelCount = remaining;
+        });
+
+        if (state.editingElementId) {
+          const target = state.savedElements.find(el => el.id === state.editingElementId);
+          if (target) {
+            target.name = els.elementNameInput.value.trim() || target.name;
+            target.prompt = promptText;
+            target.maskData = newMask;
+            target.feather = state.feather;
+            target.pixelCount = pixelCount;
+            showToast(`Updated "${target.name}".`, 'success');
+          }
+          state.editingElementId = null;
+        } else {
+          const color = ELEMENT_PALETTE[(state.nextElementNumber - 1) % ELEMENT_PALETTE.length];
+          const name = els.elementNameInput.value.trim() || `Element ${state.nextElementNumber}`;
+          state.savedElements.push({
+            id: 'el_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            name,
+            prompt: promptText,
+            color,
+            maskData: newMask,
+            feather: state.feather,
+            enabled: true,
+            pixelCount,
+          });
+          state.nextElementNumber++;
+          showToast(`Saved "${name}" (${color.name}). Active selection cleared for next pick.`, 'success');
+        }
+
+        els.elementNameInput.value = '';
+        els.elementPromptInput.value = '';
+        state.maskData.fill(0);
+        state.maskHistory = [];
+
+        rebuildSavedElementsCanvases();
+        renderSavedElementsList();
+        updateMaskOverlayAndStats();
+        renderViewport();
+      }
+
+      function rebuildSavedElementsCanvases() {
+        if (!state.width || !state.height || !state.savedOverlayCanvas || !state.regionMapCanvas) return;
+        const W = state.width;
+        const H = state.height;
+        const total = W * H;
+
+        const ovCtx = state.savedOverlayCanvas.getContext('2d');
+        const ovImg = ovCtx.createImageData(W, H);
+        const ov = ovImg.data;
+
+        const rmCtx = state.regionMapCanvas.getContext('2d');
+        const rmImg = rmCtx.createImageData(W, H);
+        const rm = rmImg.data;
+
+        for (let i = 0, p = 0; i < total; i++, p += 4) {
+          rm[p] = 18;
+          rm[p + 1] = 20;
+          rm[p + 2] = 23;
+          rm[p + 3] = 255;
+        }
+
+        const enabledEls = state.savedElements.filter(el => el.enabled);
+        enabledEls.forEach(el => {
+          const [r, g, b] = el.color.rgb;
+          const isHovered = state.hoveredElementId === el.id;
+          const alpha = isHovered ? 175 : (state.hoveredElementId ? 55 : 95);
+          const m = el.maskData;
+          for (let i = 0, p = 0; i < total; i++, p += 4) {
+            if (m[i]) {
+              ov[p] = r;
+              ov[p + 1] = g;
+              ov[p + 2] = b;
+              ov[p + 3] = alpha;
+
+              rm[p] = r;
+              rm[p + 1] = g;
+              rm[p + 2] = b;
+              rm[p + 3] = 255;
+            }
+          }
+        });
+
+        ovCtx.putImageData(ovImg, 0, 0);
+        rmCtx.putImageData(rmImg, 0, 0);
+      }
+
+      function renderSavedElementsList() {
+        const totalPx = Math.max(1, state.width * state.height);
+        const enabledCount = state.savedElements.filter(el => el.enabled).length;
+        els.savedElementCount.textContent = String(state.savedElements.length);
+        els.savedElementsEmpty.classList.toggle('hidden', state.savedElements.length > 0);
+        els.savedElementsList.innerHTML = '';
+
+        const showLimitWarn = state.executionMode === 'unified' && enabledCount > 4;
+        els.unifiedLimitWarning.classList.toggle('hidden', !showLimitWarn);
+
+        if (enabledCount > 0) {
+          els.btnRenderLabel.textContent = state.executionMode === 'sequential'
+            ? `Render Sequential (${enabledCount} Element${enabledCount > 1 ? 's' : ''})`
+            : `Render Unified (${enabledCount} Element${enabledCount > 1 ? 's' : ''})`;
+        } else if (state.hasMask) {
+          els.btnRenderLabel.textContent = 'Render Selection';
+        } else {
+          els.btnRenderLabel.textContent = 'Render Full Frame';
+        }
+
+        state.savedElements.forEach(el => {
+          const pct = ((el.pixelCount / totalPx) * 100).toFixed(1);
+          const card = document.createElement('div');
+          card.className = `rounded-xl border p-2 transition ${
+            el.enabled
+              ? 'bg-studio-bg border-studio-border hover:border-gray-500'
+              : 'bg-studio-bg/40 border-studio-border/50 opacity-55'
+          }`;
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <div class="flex items-center gap-2 min-w-0">
+                <input type="checkbox" class="el-toggle accent-studio-cyan cursor-pointer shrink-0" ${el.enabled ? 'checked' : ''} title="Enable/disable for A/B testing" />
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${el.color.hex}"></span>
+                <span class="text-xs font-semibold text-gray-100 truncate">${escapeHtml(el.name)}</span>
+                <span class="text-[10px] font-mono text-gray-500 shrink-0">${pct}%</span>
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                <button class="el-edit px-1.5 py-0.5 rounded bg-studio-elevated hover:bg-[#2c333d] text-[10px] text-gray-300 cursor-pointer">Edit</button>
+                <button class="el-del px-1.5 py-0.5 rounded bg-studio-elevated hover:bg-red-500/20 text-[10px] text-gray-400 hover:text-red-300 cursor-pointer">&times;</button>
+              </div>
+            </div>
+            <p class="text-[11px] text-gray-400 leading-snug line-clamp-2 pl-6">${escapeHtml(el.prompt)}</p>
+          `;
+
+          card.addEventListener('mouseenter', () => {
+            state.hoveredElementId = el.id;
+            rebuildSavedElementsCanvases();
+            renderViewport();
+          });
+          card.addEventListener('mouseleave', () => {
+            if (state.hoveredElementId === el.id) {
+              state.hoveredElementId = null;
+              rebuildSavedElementsCanvases();
+              renderViewport();
+            }
+          });
+
+          card.querySelector('.el-toggle').addEventListener('change', (e) => {
+            el.enabled = e.target.checked;
+            rebuildSavedElementsCanvases();
+            renderSavedElementsList();
+            renderViewport();
+          });
+
+          card.querySelector('.el-edit').addEventListener('click', () => {
+            state.editingElementId = el.id;
+            state.maskData.set(el.maskData);
+            els.elementNameInput.value = el.name;
+            els.elementPromptInput.value = el.prompt;
+            updateMaskOverlayAndStats();
+            renderViewport();
+            els.elementPromptInput.focus();
+          });
+
+          card.querySelector('.el-del').addEventListener('click', () => {
+            state.savedElements = state.savedElements.filter(item => item.id !== el.id);
+            if (state.editingElementId === el.id) state.editingElementId = null;
+            if (state.hoveredElementId === el.id) state.hoveredElementId = null;
+            rebuildSavedElementsCanvases();
+            renderSavedElementsList();
+            updateStagingBoxUI();
+            renderViewport();
+          });
+
+          els.savedElementsList.appendChild(card);
+        });
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // =========================================================================
+      // 9. UI STATE SETTERS (VIEW MODE, TOOL, CONTIGUOUS, EXECUTION MODE, BADGES)
+      // =========================================================================
+      function setViewMode(mode) {
+        state.viewMode = mode;
+        document.querySelectorAll('.view-mode-btn').forEach(btn => {
+          const active = btn.dataset.view === mode;
+          btn.className = active
+            ? 'view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer bg-studio-cyan text-[#121417] whitespace-nowrap'
+            : 'view-mode-btn px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white whitespace-nowrap';
+        });
+        const showDepthToggle = mode === 'depth' && Boolean(state.channels.depthRaw);
+        els.depthNormTopToggle.classList.toggle('hidden', !showDepthToggle);
+        els.depthNormTopToggle.classList.toggle('flex', showDepthToggle);
+        renderViewport();
+      }
+
+      function setContiguousId(enabled) {
+        state.contiguousId = Boolean(enabled);
+        state.lastHoverKey = '';
+        els.contiguousDot.className = state.contiguousId
+          ? 'w-1.5 h-1.5 rounded-full bg-studio-cyan'
+          : 'w-1.5 h-1.5 rounded-full bg-gray-500';
+        els.contiguousLabel.textContent = state.contiguousId ? 'Contiguous' : 'Global';
+        els.btnContiguousId.classList.toggle('border-studio-cyan/50', state.contiguousId);
+        els.btnContiguousId.classList.toggle('text-studio-cyan', state.contiguousId);
+      }
+
+      function setTool(tool) {
+        state.tool = tool;
+        state.lassoPoints = [];
+        clearHoverPreview();
+
+        if (tool === 'objId') setContiguousId(true);
+        else if (tool === 'matId') setContiguousId(false);
+
+        const labels = {
+          pan: 'Pan & Inspect',
+          matId: 'Material ID Picker',
+          objId: 'Object ID Picker',
+          brush: 'Mask Brush',
+          lasso: 'Polygon Lasso',
+        };
+        els.activeToolLabel.textContent = labels[tool] || tool;
+
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          const active = btn.dataset.tool === tool;
+          btn.className = active
+            ? 'tool-btn w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border border-studio-cyan/40'
+            : 'tool-btn w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer text-gray-400 hover:text-white hover:bg-studio-elevated border border-transparent';
+        });
+
+        const isIdTool = tool === 'matId' || tool === 'objId';
+        els.optTolerance.classList.toggle('hidden', !isIdTool);
+        els.optTolerance.classList.toggle('flex', isIdTool);
+        els.btnContiguousId.classList.toggle('hidden', !isIdTool);
+        els.btnContiguousId.classList.toggle('flex', isIdTool);
+        els.optDilation.classList.toggle('hidden', !isIdTool);
+        els.optDilation.classList.toggle('flex', isIdTool);
+        els.optBrushSize.classList.toggle('hidden', tool !== 'brush');
+        els.optBrushSize.classList.toggle('flex', tool === 'brush');
+        els.optLassoHint.classList.toggle('hidden', tool !== 'lasso');
+        els.optLassoHint.classList.toggle('flex', tool === 'lasso');
+
+        els.brushCursor.style.display = 'none';
+        els.mainCanvas.style.cursor = tool === 'pan' ? 'grab' : tool === 'brush' ? 'none' : 'crosshair';
+        renderViewport();
+      }
+
+      function setSelectionMode(mode) {
+        state.selectionMode = mode;
+        els.btnModeAdd.className = mode === 'add'
+          ? 'w-8 h-7 rounded-lg text-xs font-mono font-bold transition cursor-pointer bg-studio-cyan text-[#121417]'
+          : 'w-8 h-7 rounded-lg text-xs font-mono font-bold transition cursor-pointer text-gray-400 hover:text-white';
+        els.btnModeSub.className = mode === 'sub'
+          ? 'w-8 h-7 rounded-lg text-xs font-mono font-bold transition cursor-pointer bg-studio-amber text-[#121417]'
+          : 'w-8 h-7 rounded-lg text-xs font-mono font-bold transition cursor-pointer text-gray-400 hover:text-white';
+      }
+
+      function setExecutionMode(mode) {
+        state.executionMode = mode;
+        const isUnified = mode === 'unified';
+        els.btnExecUnified.className = isUnified
+          ? 'exec-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border border-studio-cyan/40'
+          : 'exec-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white border border-transparent';
+        els.btnExecSequential.className = !isUnified
+          ? 'exec-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border border-studio-cyan/40'
+          : 'exec-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer text-gray-400 hover:text-white border border-transparent';
+        els.execModeHint.textContent = isUnified ? '1 API Call' : 'Multi-Pass';
+        renderSavedElementsList();
+      }
+
+      function getTargetResolutionDims(resKey = state.resolution) {
+        const cfg = RESOLUTION_CONFIGS[resKey] || RESOLUTION_CONFIGS['2k'];
+        const srcW = state.width || 1280;
+        const srcH = state.height || 720;
+        const aspect = srcW / srcH;
+        if (aspect >= 1) {
+          return { w: cfg.targetLongEdge, h: Math.round(cfg.targetLongEdge / aspect) };
+        }
+        return { w: Math.round(cfg.targetLongEdge * aspect), h: cfg.targetLongEdge };
+      }
+
+      function updateResolutionUI() {
+        const cfg = RESOLUTION_CONFIGS[state.resolution] || RESOLUTION_CONFIGS['2k'];
+        const dims = getTargetResolutionDims(state.resolution);
+        els.resTierBadge.textContent = `${cfg.tier} · ${dims.w}×${dims.h}`;
+        els.resTierBadge.className = state.resolution === '2k'
+          ? 'text-[10px] font-mono text-studio-cyan'
+          : 'text-[10px] font-mono text-studio-amber';
+        els.resHintText.textContent = cfg.hint;
+      }
+
+      function encodeCanvasForApi(canvas, maxDim, mimeType = 'image/jpeg', quality = 0.9) {
+        const w = canvas.width;
+        const h = canvas.height;
+        const longest = Math.max(w, h);
+        if (longest <= maxDim) {
+          return canvas.toDataURL(mimeType, quality).split(',')[1];
+        }
+        const scale = maxDim / longest;
+        const tw = Math.max(1, Math.round(w * scale));
+        const th = Math.max(1, Math.round(h * scale));
+        const tmp = createOffscreenCanvas(tw, th);
+        const tCtx = tmp.getContext('2d');
+        tCtx.imageSmoothingEnabled = mimeType !== 'image/png';
+        tCtx.imageSmoothingQuality = 'high';
+        tCtx.drawImage(canvas, 0, 0, tw, th);
+        return tmp.toDataURL(mimeType, quality).split(',')[1];
+      }
+
+      function updateChannelBadges() {
+        const availability = {
+          beauty: Boolean(state.channels.beauty),
+          matId: Boolean(state.channels.matId),
+          objId: Boolean(state.channels.objId),
+          depth: Boolean(state.channels.depthRaw),
+          alpha: Boolean(state.channels.alpha),
+        };
+        document.querySelectorAll('.channel-badge').forEach(badge => {
+          const ch = badge.dataset.channel;
+          const ok = availability[ch];
+          const dot = badge.querySelector('.status-dot');
+          dot.className = ok
+            ? 'status-dot w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'
+            : 'status-dot w-1.5 h-1.5 rounded-full bg-gray-600';
+          badge.classList.toggle('text-gray-200', ok);
+          badge.classList.toggle('text-gray-500', !ok);
+        });
+        els.depthActivePill.classList.toggle('hidden', !availability.depth);
+      }
+
+      // =========================================================================
+      // 10. ITERATION FILMSTRIP & DOWNLOAD
+      // =========================================================================
+      function resetFilmstripWithOriginal() {
+        if (!state.channels.beauty) return;
+        const thumbUrl = state.channels.beauty.toDataURL('image/jpeg', 0.72);
+        state.iterations = [{
+          id: 'original',
+          label: 'Original Beauty',
+          prompt: state.sceneName,
+          thumbUrl,
+          canvas: state.channels.beauty,
+          isOriginal: true,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }];
+        state.activeIterationId = 'original';
+        renderFilmstrip();
+      }
+
+      function renderFilmstrip() {
+        els.iterationCount.textContent = String(state.iterations.length);
+        els.filmstripBody.innerHTML = '';
+
+        state.iterations.forEach((iter, idx) => {
+          const isActive = iter.id === state.activeIterationId;
+          const card = document.createElement('div');
+          card.className = `relative shrink-0 w-40 h-24 rounded-xl overflow-hidden border transition cursor-pointer group bg-studio-bg ${
+            isActive
+              ? 'border-studio-cyan ring-1 ring-studio-cyan/50 shadow-lg shadow-studio-cyan/15'
+              : 'border-studio-border hover:border-gray-500'
+          }`;
+
+          card.innerHTML = `
+            <img src="${iter.thumbUrl}" class="w-full h-full object-cover" alt="${escapeHtml(iter.label)}" />
+            ${!iter.isOriginal && iter.resolution ? `<span class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/75 border border-white/15 text-[9px] font-mono font-semibold text-studio-cyan">${iter.resolution.toUpperCase()}</span>` : ''}
+            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-2 py-1.5 flex items-end justify-between gap-1">
+              <div class="min-w-0">
+                <div class="text-[10px] font-semibold text-white truncate">${escapeHtml(iter.label)}</div>
+                <div class="text-[9px] font-mono text-gray-400">${iter.timestamp}</div>
+              </div>
+              ${!iter.isOriginal ? `<button class="iter-dl p-1 rounded-md bg-studio-panel/90 hover:bg-studio-cyan hover:text-[#121417] text-gray-200 transition cursor-pointer" title="Download PNG">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                </svg>
+              </button>` : ''}
+            </div>
+          `;
+
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('.iter-dl')) return;
+            state.activeIterationId = iter.id;
+            if (iter.isOriginal) {
+              state.splitActive = false;
+              els.btnToggleSplit.classList.remove('bg-studio-cyan/15', 'text-studio-cyan', 'border-studio-cyan/40');
+              setViewMode('beauty');
+            } else {
+              state.resultCanvas = iter.canvas;
+              els.btnDownload.disabled = false;
+              setViewMode('result');
+            }
+            renderFilmstrip();
+          });
+
+          const dlBtn = card.querySelector('.iter-dl');
+          if (dlBtn) {
+            dlBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const resTag = (iter.resolution || state.resolution).toUpperCase();
+              downloadCanvas(iter.canvas, `AURA_${state.sceneName.replace(/\s+/g, '_')}_${resTag}_v${idx}.png`, iter.resolution || state.resolution);
+            });
+          }
+
+          els.filmstripBody.appendChild(card);
+        });
+      }
+
+      function downloadCanvas(canvas, filename, resKey = state.resolution) {
+        if (!canvas) return;
+        const dims = getTargetResolutionDims(resKey);
+        const exportCanvas = createOffscreenCanvas(dims.w, dims.h);
+        const eCtx = exportCanvas.getContext('2d');
+        eCtx.imageSmoothingEnabled = true;
+        eCtx.imageSmoothingQuality = 'high';
+        eCtx.drawImage(canvas, 0, 0, dims.w, dims.h);
+
+        const a = document.createElement('a');
+        a.href = exportCanvas.toDataURL('image/png');
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast(`Exported ${resKey.toUpperCase()} PNG (${dims.w}×${dims.h}).`, 'info');
+      }
+
+      // =========================================================================
+      // 11. GEMINI AI RENDERING ENGINE (UNIFIED COLOR MAP & SEQUENTIAL LOCK)
+      // =========================================================================
+      async function fetchWithBackoff(url, options, maxRetries = 3) {
+        let delay = 1000;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          const res = await fetch(url, options);
+          if (res.ok) return res;
+          if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, delay));
+            delay *= 2;
+            continue;
+          }
+          const errText = await res.text().catch(() => '');
+          throw new Error(`API ${res.status}: ${errText.slice(0, 180) || res.statusText}`);
+        }
+      }
+
+      async function callGeminiImageEdit(parts) {
+        const activeKey = (state.customApiKey || apiKey || '').trim();
+        const activeModel = (state.modelId || DEFAULT_MODEL_ID).trim();
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(activeModel)}:generateContent?key=${encodeURIComponent(activeKey)}`;
+        const payload = {
+          contents: [{ role: 'user', parts }],
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+        };
+        const res = await fetchWithBackoff(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        const imgPart = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.data);
+        if (!imgPart) {
+          const textPart = data?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text;
+          throw new Error(textPart ? textPart.slice(0, 140) : 'No image returned from Gemini API.');
+        }
+        const dataUrl = `data:${imgPart.inlineData.mimeType || 'image/png'};base64,${imgPart.inlineData.data}`;
+        const img = await loadImageFromUrl(dataUrl);
+        return drawAligned(img, state.width, state.height, true);
+      }
+
+      function buildSingleMaskGuideCanvas(baseCanvas, maskUint8, rgb = [0, 210, 255]) {
+        const W = state.width;
+        const H = state.height;
+        const c = createOffscreenCanvas(W, H);
+        const cCtx = c.getContext('2d');
+        cCtx.drawImage(baseCanvas, 0, 0);
+
+        const ov = createOffscreenCanvas(W, H);
+        const oCtx = ov.getContext('2d');
+        const img = oCtx.createImageData(W, H);
+        const d = img.data;
+        for (let i = 0, p = 0; i < maskUint8.length; i++, p += 4) {
+          if (maskUint8[i]) {
+            d[p] = rgb[0];
+            d[p + 1] = rgb[1];
+            d[p + 2] = rgb[2];
+            d[p + 3] = 175;
+          }
+        }
+        oCtx.putImageData(img, 0, 0);
+        cCtx.drawImage(ov, 0, 0);
+        return c;
+      }
+
+      function compositeMaskedCanvas(baseCanvas, generatedCanvas, maskUint8, featherPx = 2) {
+        const W = state.width;
+        const H = state.height;
+        const alphaC = createOffscreenCanvas(W, H);
+        const aCtx = alphaC.getContext('2d');
+        const img = aCtx.createImageData(W, H);
+        const d = img.data;
+        for (let i = 0, p = 0; i < maskUint8.length; i++, p += 4) {
+          d[p] = 255; d[p + 1] = 255; d[p + 2] = 255;
+          d[p + 3] = maskUint8[i] ? 255 : 0;
+        }
+        aCtx.putImageData(img, 0, 0);
+
+        const featherC = createOffscreenCanvas(W, H);
+        const fCtx = featherC.getContext('2d');
+        if (featherPx > 0) fCtx.filter = `blur(${featherPx}px)`;
+        fCtx.drawImage(alphaC, 0, 0);
+
+        const cutout = createOffscreenCanvas(W, H);
+        const cutCtx = cutout.getContext('2d');
+        cutCtx.drawImage(generatedCanvas, 0, 0, W, H);
+        cutCtx.globalCompositeOperation = 'destination-in';
+        cutCtx.drawImage(featherC, 0, 0);
+
+        const out = createOffscreenCanvas(W, H);
+        const outCtx = out.getContext('2d');
+        outCtx.drawImage(baseCanvas, 0, 0);
+        outCtx.drawImage(cutout, 0, 0);
+        return out;
+      }
+
+      async function executeRender() {
+        if (state.isRendering) return;
+        if (!state.channels.beauty) {
+          showToast('Upload an Enscape package first to start rendering.', 'warn');
+          return;
+        }
+
+        const overallPrompt = els.promptInput.value.trim();
+        const enabledEls = state.savedElements.filter(el => el.enabled && el.pixelCount > 0);
+        const useActiveMaskOnly = enabledEls.length === 0 && state.hasMask;
+
+        if (!overallPrompt && enabledEls.length === 0) {
+          showToast('Enter an Overall Direction or save at least one Element Instruction first.', 'warn');
+          return;
+        }
+
+        if (!state.lockSeed) {
+          state.seed = Math.floor(100000 + Math.random() * 899999);
+          els.seedInput.value = state.seed;
+        }
+
+        state.isRendering = true;
+        els.btnRender.disabled = true;
+        els.btnRender.classList.add('btn-rendering');
+        els.renderProgressOverlay.classList.remove('hidden');
+
+        const resCfg = RESOLUTION_CONFIGS[state.resolution] || RESOLUTION_CONFIGS['2k'];
+        const depthCanvas = state.geometryRetention >= 15 ? getActiveDepthCanvas() : null;
+        const depthB64 = depthCanvas ? encodeCanvasForApi(depthCanvas, resCfg.apiInputMaxDim, 'image/jpeg', 0.85) : null;
+        const moodB64 = state.moodBoardDataUrl ? state.moodBoardDataUrl.split(',')[1] : null;
+
+        try {
+          let finalCanvas = null;
+          let iterLabel = 'Full Render';
+
+          if (enabledEls.length > 0 && state.executionMode === 'sequential') {
+            let workingCanvas = state.channels.beauty;
+            const totalSteps = (overallPrompt ? 1 : 0) + enabledEls.length;
+            let stepNum = 0;
+
+            if (overallPrompt) {
+              stepNum++;
+              els.renderStatusText.textContent = `[${resCfg.label}] Pass ${stepNum}/${totalSteps}: Overall Direction...`;
+              const parts = [];
+              const text = [
+                'You are an architectural visualization engine (Chaos Veras workflow).',
+                `OVERALL DIRECTION:\n${overallPrompt}`,
+                `OUTPUT QUALITY: ${resCfg.promptHint}`,
+                `Geometry Retention: ${state.geometryRetention}%, Creativity: ${state.creativity}%, Seed: ${state.seed}.`,
+                'IMAGE 1 is the base architectural render. Preserve exact camera framing and structural lines.',
+                depthB64 ? 'IMAGE 2 is the normalized depth map. Lock geometry to this depth map.' : '',
+                moodB64 ? 'Use the attached Mood Board image for lighting and material palette inspiration.' : '',
+                'Output ONLY the rendered image.'
+              ].filter(Boolean).join('\n');
+              parts.push({ text });
+              parts.push({ inlineData: { mimeType: 'image/jpeg', data: encodeCanvasForApi(workingCanvas, resCfg.apiInputMaxDim, 'image/jpeg', resCfg.jpegQuality) } });
+              if (depthB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: depthB64 } });
+              if (moodB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: moodB64 } });
+              workingCanvas = await callGeminiImageEdit(parts);
+            }
+
+            for (const el of enabledEls) {
+              stepNum++;
+              els.renderStatusText.textContent = `[${resCfg.label}] Pass ${stepNum}/${totalSteps}: ${el.name}...`;
+              const guideCanvas = buildSingleMaskGuideCanvas(workingCanvas, el.maskData, el.color.rgb);
+              const parts = [];
+              const text = [
+                'You are an architectural visualization inpainting engine.',
+                `TARGET ELEMENT (${el.name}): ${el.prompt}`,
+                `OUTPUT QUALITY: ${resCfg.promptHint}`,
+                `Geometry Retention: ${state.geometryRetention}%, Creativity: ${state.creativity}%.`,
+                'IMAGE 1 is the current architectural render.',
+                `IMAGE 2 highlights the EXACT target region in ${el.color.name}. Modify ONLY that highlighted surface to match the target element direction with realistic perspective and lighting. Leave all other areas unchanged.`,
+                depthB64 ? 'IMAGE 3 is the normalized depth pass for geometry lock.' : '',
+                'Output ONLY the rendered image.'
+              ].filter(Boolean).join('\n');
+              parts.push({ text });
+              parts.push({ inlineData: { mimeType: 'image/jpeg', data: encodeCanvasForApi(workingCanvas, resCfg.apiInputMaxDim, 'image/jpeg', resCfg.jpegQuality) } });
+              parts.push({ inlineData: { mimeType: 'image/jpeg', data: encodeCanvasForApi(guideCanvas, resCfg.apiInputMaxDim, 'image/jpeg', resCfg.jpegQuality) } });
+              if (depthB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: depthB64 } });
+              const rawPass = await callGeminiImageEdit(parts);
+              workingCanvas = state.strictLock
+                ? compositeMaskedCanvas(workingCanvas, rawPass, el.maskData, el.feather ?? state.feather)
+                : rawPass;
+            }
+
+            finalCanvas = workingCanvas;
+            iterLabel = `Sequential (${enabledEls.length} El)`;
+
+          } else if (enabledEls.length > 0) {
+            els.renderStatusText.textContent = `Synthesizing ${resCfg.label} ${resCfg.tier} (${enabledEls.length} Elements)...`;
+            const manifest = enabledEls.map(el => `- ${el.color.name.toUpperCase()} (${el.color.hex}) [${el.name}]: ${el.prompt}`).join('\n');
+            const parts = [];
+            const text = [
+              'You are an elite architectural visualization AI operating inside an architectural studio workflow.',
+              overallPrompt
+                ? `OVERALL SCENE DIRECTION:\n${overallPrompt}`
+                : 'OVERALL SCENE DIRECTION: Keep all uncolored/background areas strictly identical to IMAGE 1 in lighting, materials, and geometry.',
+              `ELEMENT REGION MANIFEST (mapped to IMAGE 2 color zones):\n${manifest}`,
+              `OUTPUT QUALITY: ${resCfg.promptHint}`,
+              `Geometry Retention: ${state.geometryRetention}%, Creativity: ${state.creativity}%, Seed: ${state.seed}.`,
+              'IMAGE 1 is the base Enscape architectural render.',
+              'IMAGE 2 is the Color-Coded Region Map where each solid color corresponds to the manifest above. Apply each material/lighting instruction strictly inside its matching color zone while keeping global lighting and reflections cohesive.',
+              depthB64 ? 'IMAGE 3 is the normalized Enscape Depth pass. Lock architectural edges and perspective to it.' : '',
+              moodB64 ? 'Adopt the tonal palette and lighting mood from the attached Mood Board reference.' : '',
+              'Output ONLY the final photorealistic architectural image.'
+            ].filter(Boolean).join('\n');
+
+            parts.push({ text });
+            parts.push({ inlineData: { mimeType: 'image/jpeg', data: encodeCanvasForApi(state.channels.beauty, resCfg.apiInputMaxDim, 'image/jpeg', resCfg.jpegQuality) } });
+            parts.push({ inlineData: { mimeType: 'image/png', data: encodeCanvasForApi(state.regionMapCanvas, resCfg.apiInputMaxDim, 'image/png', 1.0) } });
+            if (depthB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: depthB64 } });
+            if (moodB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: moodB64 } });
+
+            const rawOut = await callGeminiImageEdit(parts);
+
+            if (!overallPrompt && state.strictLock) {
+              const unionMask = new Uint8Array(state.width * state.height);
+              enabledEls.forEach(el => {
+                for (let i = 0; i < unionMask.length; i++) if (el.maskData[i]) unionMask[i] = 255;
+              });
+              finalCanvas = compositeMaskedCanvas(state.channels.beauty, rawOut, unionMask, state.feather);
+            } else {
+              finalCanvas = rawOut;
+            }
+            iterLabel = `Unified (${enabledEls.length} El)`;
+
+          } else {
+            els.renderStatusText.textContent = useActiveMaskOnly
+              ? `Rendering ${resCfg.label} Active Selection...`
+              : `Synthesizing ${resCfg.label} ${resCfg.tier}...`;
+            const parts = [];
+            const promptForSel = els.elementPromptInput.value.trim() || overallPrompt;
+            const text = [
+              'You are an elite architectural visualization AI operating inside an architectural studio workflow.',
+              `ARCHITECTURAL DIRECTION:\n${promptForSel}`,
+              `OUTPUT QUALITY: ${resCfg.promptHint}`,
+              `Geometry Retention: ${state.geometryRetention}%, Creativity: ${state.creativity}%, Seed: ${state.seed}.`,
+              'IMAGE 1 is the base Enscape architectural render.',
+              useActiveMaskOnly ? 'IMAGE 2 highlights the EXACT target selection region in bright cyan. Modify ONLY that highlighted area and keep all other pixels unchanged.' : '',
+              depthB64 ? 'Use the attached normalized Depth pass to lock architectural lines and massing.' : '',
+              moodB64 ? 'Use the attached Mood Board reference for color palette and lighting mood.' : '',
+              'Output ONLY the final photorealistic architectural image.'
+            ].filter(Boolean).join('\n');
+
+            parts.push({ text });
+            parts.push({ inlineData: { mimeType: 'image/jpeg', data: encodeCanvasForApi(state.channels.beauty, resCfg.apiInputMaxDim, 'image/jpeg', resCfg.jpegQuality) } });
+            if (useActiveMaskOnly) {
+              const guide = buildSingleMaskGuideCanvas(state.channels.beauty, state.maskData, [0, 210, 255]);
+              parts.push({ inlineData: { mimeType: 'image/jpeg', data: encodeCanvasForApi(guide, resCfg.apiInputMaxDim, 'image/jpeg', resCfg.jpegQuality) } });
+            }
+            if (depthB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: depthB64 } });
+            if (moodB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: moodB64 } });
+
+            const rawOut = await callGeminiImageEdit(parts);
+            finalCanvas = (useActiveMaskOnly && state.strictLock)
+              ? compositeMaskedCanvas(state.channels.beauty, rawOut, state.maskData, state.feather)
+              : rawOut;
+            iterLabel = useActiveMaskOnly ? 'Selection Render' : 'Full Frame';
+          }
+
+          state.resultCanvas = finalCanvas;
+          els.btnDownload.disabled = false;
+
+          const newIter = {
+            id: 'iter_' + Date.now(),
+            label: `${iterLabel} #${state.iterations.length}`,
+            prompt: overallPrompt || iterLabel,
+            resolution: state.resolution,
+            thumbUrl: finalCanvas.toDataURL('image/jpeg', 0.72),
+            canvas: finalCanvas,
+            isOriginal: false,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          state.iterations.push(newIter);
+          state.activeIterationId = newIter.id;
+          renderFilmstrip();
+          setViewMode('result');
+          showToast(`${resCfg.label} render complete! Toggle Split to compare Before & After.`, 'success');
+        } catch (err) {
+          console.error('Render Error:', err);
+          showToast(`Render failed: ${err.message}`, 'error');
+        } finally {
+          state.isRendering = false;
+          els.btnRender.disabled = false;
+          els.btnRender.classList.remove('btn-rendering');
+          els.renderProgressOverlay.classList.add('hidden');
+        }
+      }
+
+      // =========================================================================
+      // 12. INTERACTION & EVENT LISTENERS
+      // =========================================================================
+      els.mainCanvas.addEventListener('pointerdown', (e) => {
+        if (!state.width) return;
+        const pt = screenToImage(e.clientX, e.clientY);
+        state.lastPointer = { x: e.clientX, y: e.clientY, imgX: pt.x, imgY: pt.y };
+
+        if (e.button === 1 || state.tool === 'pan' || state.isSpaceDown) {
+          state.isDragging = true;
+          els.mainCanvas.setPointerCapture(e.pointerId);
+          els.mainCanvas.style.cursor = 'grabbing';
+          return;
+        }
+
+        const effectiveMode = e.altKey ? 'sub' : (e.shiftKey ? 'add' : state.selectionMode);
+
+        if (state.tool === 'matId' || state.tool === 'objId') {
+          pickIdPassAt(pt.x, pt.y, state.tool, effectiveMode);
+        } else if (state.tool === 'brush') {
+          pushMaskUndo();
+          state.isDragging = true;
+          els.mainCanvas.setPointerCapture(e.pointerId);
+          paintBrushSegment(pt.x, pt.y, pt.x, pt.y, effectiveMode);
+        } else if (state.tool === 'lasso') {
+          if (state.lassoPoints.length >= 3) {
+            const first = state.lassoPoints[0];
+            const distPx = Math.hypot((pt.x - first.x) * state.zoom, (pt.y - first.y) * state.zoom);
+            if (distPx <= 12) {
+              closePolygonLasso();
+              return;
+            }
+          }
+          state.lassoPoints.push({ x: pt.x, y: pt.y });
+          renderViewport();
+        }
+      });
+
+      els.mainCanvas.addEventListener('dblclick', () => {
+        if (state.tool === 'lasso' && state.lassoPoints.length >= 3) {
+          closePolygonLasso();
+        }
+      });
+
+      els.mainCanvas.addEventListener('pointermove', (e) => {
+        if (!state.width) return;
+        const pt = screenToImage(e.clientX, e.clientY);
+        state.cursorImgPos = { x: pt.x, y: pt.y };
+
+        if (state.tool === 'brush' && !state.isSpaceDown) {
+          const diam = state.brushRadius * 2;
+          els.brushCursor.style.display = 'block';
+          els.brushCursor.style.width = `${diam}px`;
+          els.brushCursor.style.height = `${diam}px`;
+          els.brushCursor.style.left = `${e.clientX}px`;
+          els.brushCursor.style.top = `${e.clientY}px`;
+          els.brushCursor.style.borderColor = (e.altKey || state.selectionMode === 'sub') ? '#f59e0b' : '#00d2ff';
+        } else {
+          els.brushCursor.style.display = 'none';
+        }
+
+        const ix = Math.floor(pt.x);
+        const iy = Math.floor(pt.y);
+        if (ix >= 0 && ix < state.width && iy >= 0 && iy < state.height) {
+          els.coordText.textContent = `X:${ix} Y:${iy}`;
+          const samplePass = state.tool === 'objId' ? 'objId' : 'matId';
+          const pData = state.passPixelCache[samplePass];
+          if (pData) {
+            const idx = (iy * state.width + ix) * 4;
+            els.swatchReadout.style.backgroundColor = `rgb(${pData[idx]},${pData[idx + 1]},${pData[idx + 2]})`;
+          }
+        } else {
+          els.coordText.textContent = 'X:— Y:—';
+        }
+
+        if (state.isDragging) {
+          if (state.tool === 'pan' || state.isSpaceDown || e.buttons === 4) {
+            state.panX += e.clientX - state.lastPointer.x;
+            state.panY += e.clientY - state.lastPointer.y;
+            state.lastPointer.x = e.clientX;
+            state.lastPointer.y = e.clientY;
+            renderViewport();
+            return;
+          }
+          if (state.tool === 'brush') {
+            const effectiveMode = e.altKey ? 'sub' : (e.shiftKey ? 'add' : state.selectionMode);
+            paintBrushSegment(state.lastPointer.imgX, state.lastPointer.imgY, pt.x, pt.y, effectiveMode);
+            state.lastPointer.imgX = pt.x;
+            state.lastPointer.imgY = pt.y;
+            return;
+          }
+        } else if ((state.tool === 'matId' || state.tool === 'objId') && !state.isSpaceDown) {
+          if (!state.hoverRafPending) {
+            state.hoverRafPending = true;
+            const effMode = e.altKey ? 'sub' : (e.shiftKey ? 'add' : state.selectionMode);
+            requestAnimationFrame(() => {
+              state.hoverRafPending = false;
+              if (state.cursorImgPos) updateHoverPreview(state.cursorImgPos.x, state.cursorImgPos.y, effMode);
+            });
+          }
+        } else if (state.tool === 'lasso' && state.lassoPoints.length > 0) {
+          renderViewport();
+        }
+      });
+
+      els.mainCanvas.addEventListener('pointerup', () => {
+        state.isDragging = false;
+        els.mainCanvas.style.cursor = (state.tool === 'pan' || state.isSpaceDown) ? 'grab' : state.tool === 'brush' ? 'none' : 'crosshair';
+      });
+
+      els.mainCanvas.addEventListener('pointerleave', () => {
+        els.brushCursor.style.display = 'none';
+        clearHoverPreview();
+      });
+
+      els.mainCanvas.addEventListener('wheel', (e) => {
+        if (!state.width) return;
+        e.preventDefault();
+        const rect = els.viewportContainer.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const factor = e.deltaY < 0 ? 1.12 : 0.89;
+        const newZoom = Math.max(0.15, Math.min(8, state.zoom * factor));
+        const ratio = newZoom / state.zoom;
+        state.panX = sx - (sx - state.panX) * ratio;
+        state.panY = sy - (sy - state.panY) * ratio;
+        state.zoom = newZoom;
+        updateZoomLabel();
+        renderViewport();
+      }, { passive: false });
+
+      let draggingSplit = false;
+      els.splitLine.addEventListener('pointerdown', (e) => {
+        draggingSplit = true;
+        els.splitLine.setPointerCapture(e.pointerId);
+      });
+      window.addEventListener('pointermove', (e) => {
+        if (!draggingSplit) return;
+        const rect = els.viewportContainer.getBoundingClientRect();
+        state.splitPos = Math.max(0.03, Math.min(0.97, (e.clientX - rect.left) / rect.width));
+        els.splitLine.style.left = `${state.splitPos * 100}%`;
+        renderViewport();
+      });
+      window.addEventListener('pointerup', () => { draggingSplit = false; });
+
+      let dragDepth = 0;
+      window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; els.dropOverlay.classList.remove('hidden'); });
+      window.addEventListener('dragover', (e) => { e.preventDefault(); });
+      window.addEventListener('dragleave', (e) => { e.preventDefault(); dragDepth--; if (dragDepth <= 0) { dragDepth = 0; els.dropOverlay.classList.add('hidden'); } });
+      window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragDepth = 0;
+        els.dropOverlay.classList.add('hidden');
+        if (e.dataTransfer?.files?.length) handlePackageFiles(e.dataTransfer.files);
+      });
+
+      window.addEventListener('keydown', (e) => {
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') {
+          if (e.key === 'Escape') document.activeElement.blur();
+          return;
+        }
+        if (e.code === 'Space') { e.preventDefault(); state.isSpaceDown = true; els.mainCanvas.style.cursor = 'grab'; }
+        else if (e.key === 'h' || e.key === 'H') setTool('pan');
+        else if (e.key === 'm' || e.key === 'M') setTool('matId');
+        else if (e.key === 'o' || e.key === 'O') setTool('objId');
+        else if (e.key === 'b' || e.key === 'B') setTool('brush');
+        else if (e.key === 'l' || e.key === 'L') setTool('lasso');
+        else if (e.key === 'i' || e.key === 'I') invertMask();
+        else if (e.key === 'Escape') clearMask();
+        else if (e.key === 'Enter' && state.tool === 'lasso' && state.lassoPoints.length >= 3) closePolygonLasso();
+        else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undoMask(); }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space') {
+          state.isSpaceDown = false;
+          els.mainCanvas.style.cursor = state.tool === 'pan' ? 'grab' : state.tool === 'brush' ? 'none' : 'crosshair';
+        }
+      });
+
+      els.btnImportPackage.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.packageFileInput.click(); }
+      });
+      els.packageFileInput.addEventListener('change', (e) => {
+        const picked = e.target.files ? Array.from(e.target.files) : [];
+        e.target.value = '';
+        if (picked.length) handlePackageFiles(picked);
+      });
+
+      document.querySelectorAll('.view-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => setViewMode(btn.dataset.view));
+      });
+
+      els.btnToggleMaskOverlay.addEventListener('click', () => {
+        state.showMaskOverlay = !state.showMaskOverlay;
+        els.btnToggleMaskOverlay.className = state.showMaskOverlay
+          ? 'px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border-studio-cyan/40 whitespace-nowrap'
+          : 'px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition cursor-pointer bg-studio-bg text-gray-400 hover:text-white border-studio-border whitespace-nowrap';
+        renderViewport();
+      });
+
+      els.btnToggleSplit.addEventListener('click', () => {
+        if (!state.resultCanvas) {
+          showToast('Run a render first to compare Before & After.', 'info');
+          return;
+        }
+        state.splitActive = !state.splitActive;
+        els.btnToggleSplit.className = state.splitActive
+          ? 'px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition cursor-pointer bg-studio-cyan/15 text-studio-cyan border-studio-cyan/40 whitespace-nowrap'
+          : 'px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition cursor-pointer bg-studio-bg text-gray-400 hover:text-white border-studio-border whitespace-nowrap';
+        renderViewport();
+      });
+
+      document.querySelectorAll('.tool-btn').forEach(btn => {
+        btn.addEventListener('click', () => setTool(btn.dataset.tool));
+      });
+      els.btnModeAdd.addEventListener('click', () => setSelectionMode('add'));
+      els.btnModeSub.addEventListener('click', () => setSelectionMode('sub'));
+      els.btnInvertMask.addEventListener('click', invertMask);
+      els.btnUndoMask.addEventListener('click', undoMask);
+      els.btnClearMask.addEventListener('click', clearMask);
+
+      els.sliderTolerance.addEventListener('input', (e) => {
+        state.tolerance = parseInt(e.target.value, 10);
+        els.valTolerance.textContent = state.tolerance;
+        state.lastHoverKey = '';
+      });
+      els.btnContiguousId.addEventListener('click', () => {
+        setContiguousId(!state.contiguousId);
+      });
+      els.sliderDilation.addEventListener('input', (e) => {
+        state.dilation = parseInt(e.target.value, 10);
+        els.valDilation.textContent = `${state.dilation}px`;
+      });
+      els.sliderFeather.addEventListener('input', (e) => {
+        state.feather = parseInt(e.target.value, 10);
+        els.valFeather.textContent = `${state.feather}px`;
+      });
+      els.sliderBrushSize.addEventListener('input', (e) => {
+        state.brushRadius = parseInt(e.target.value, 10);
+        els.valBrushSize.textContent = `${state.brushRadius}px`;
+      });
+
+      const syncNormalizeDepth = (checked) => {
+        state.autoNormalizeDepth = checked;
+        els.chkNormalizeDepth.checked = checked;
+        els.chkNormalizeDepthTop.checked = checked;
+        renderViewport();
+      };
+      els.chkNormalizeDepth.addEventListener('change', (e) => syncNormalizeDepth(e.target.checked));
+      els.chkNormalizeDepthTop.addEventListener('change', (e) => syncNormalizeDepth(e.target.checked));
+
+      const zoomBy = (factor) => {
+        if (!state.width) return;
+        const rect = els.viewportContainer.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const newZoom = Math.max(0.15, Math.min(8, state.zoom * factor));
+        const ratio = newZoom / state.zoom;
+        state.panX = cx - (cx - state.panX) * ratio;
+        state.panY = cy - (cy - state.panY) * ratio;
+        state.zoom = newZoom;
+        updateZoomLabel();
+        renderViewport();
+      };
+      els.btnZoomIn.addEventListener('click', () => zoomBy(1.2));
+      els.btnZoomOut.addEventListener('click', () => zoomBy(0.83));
+      els.btnFitScreen.addEventListener('click', fitToScreen);
+
+      els.presetPromptSelect.addEventListener('change', (e) => {
+        const key = e.target.value;
+        const preset = PRESET_PROMPTS[key];
+        if (!preset) {
+          els.presetPurposeNote.textContent = '';
+          els.presetPurposeNote.classList.add('hidden');
+          return;
+        }
+        els.promptInput.value = preset.prompt;
+        els.presetPurposeNote.textContent = `Purpose: ${preset.purpose}`;
+        els.presetPurposeNote.classList.remove('hidden');
+        showToast(`Loaded MHM preset: ${preset.name}`, 'info');
+      });
+
+      els.btnClearPrompt.addEventListener('click', () => {
+        els.promptInput.value = '';
+        els.presetPromptSelect.value = '';
+        els.presetPurposeNote.textContent = '';
+        els.presetPurposeNote.classList.add('hidden');
+        els.promptInput.focus();
+      });
+
+      els.resolutionSelect.addEventListener('change', (e) => {
+        state.resolution = e.target.value;
+        updateResolutionUI();
+        const cfg = RESOLUTION_CONFIGS[state.resolution];
+        showToast(`Resolution set to ${cfg.label} (${cfg.tier})`, 'info');
+      });
+
+      els.btnSaveElement.addEventListener('click', saveCurrentElement);
+      els.btnCancelStaging.addEventListener('click', clearMask);
+      els.btnToggleSavedOverlays.addEventListener('click', () => {
+        state.showSavedOverlays = !state.showSavedOverlays;
+        els.btnToggleSavedOverlays.textContent = state.showSavedOverlays ? 'Overlays: ON' : 'Overlays: OFF';
+        els.btnToggleSavedOverlays.className = state.showSavedOverlays
+          ? 'text-[10px] font-medium px-2 py-0.5 rounded-md border border-studio-cyan/40 bg-studio-cyan/10 text-studio-cyan hover:bg-studio-cyan/20 transition cursor-pointer'
+          : 'text-[10px] font-medium px-2 py-0.5 rounded-md border border-studio-border bg-studio-bg text-gray-400 hover:text-white transition cursor-pointer';
+        renderViewport();
+      });
+
+      els.btnExecUnified.addEventListener('click', () => setExecutionMode('unified'));
+      els.btnExecSequential.addEventListener('click', () => setExecutionMode('sequential'));
+      els.chkStrictLock.addEventListener('change', (e) => { state.strictLock = e.target.checked; });
+      els.sliderGeometry.addEventListener('input', (e) => {
+        state.geometryRetention = parseInt(e.target.value, 10);
+        els.valGeometry.textContent = `${state.geometryRetention}%`;
+      });
+      els.sliderCreativity.addEventListener('input', (e) => {
+        state.creativity = parseInt(e.target.value, 10);
+        els.valCreativity.textContent = `${state.creativity}%`;
+      });
+      els.chkLockSeed.addEventListener('change', (e) => { state.lockSeed = e.target.checked; });
+      els.seedInput.addEventListener('change', (e) => {
+        const parsed = parseInt(e.target.value, 10);
+        if (!Number.isNaN(parsed)) state.seed = parsed;
+      });
+      els.btnRandomSeed.addEventListener('click', () => {
+        state.seed = Math.floor(100000 + Math.random() * 899999);
+        els.seedInput.value = state.seed;
+      });
+
+      els.moodBoardInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          state.moodBoardDataUrl = reader.result;
+          els.moodBoardPreview.src = reader.result;
+          els.moodBoardPreview.classList.remove('hidden');
+          els.moodBoardPlaceholder.classList.add('hidden');
+          els.btnClearMood.classList.remove('hidden');
+          showToast('Mood board reference attached.', 'info');
+        };
+        reader.readAsDataURL(file);
+      });
+      els.btnClearMood.addEventListener('click', () => {
+        state.moodBoardDataUrl = null;
+        els.moodBoardPreview.src = '';
+        els.moodBoardPreview.classList.add('hidden');
+        els.moodBoardPlaceholder.classList.remove('hidden');
+        els.btnClearMood.classList.add('hidden');
+      });
+
+      els.btnRender.addEventListener('click', executeRender);
+      els.btnDownload.addEventListener('click', () => {
+        if (!state.resultCanvas) return;
+        const activeIter = state.iterations.find(it => it.id === state.activeIterationId);
+        const resKey = activeIter?.resolution || state.resolution;
+        downloadCanvas(state.resultCanvas, `AURA_${state.sceneName.replace(/\s+/g, '_')}_${resKey.toUpperCase()}_${Date.now()}.png`, resKey);
+      });
+
+      let filmstripOpen = true;
+      els.btnToggleFilmstrip.addEventListener('click', () => {
+        filmstripOpen = !filmstripOpen;
+        els.filmstripBody.classList.toggle('hidden', !filmstripOpen);
+        els.filmstripChevron.style.transform = filmstripOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+        resizeViewportCanvas();
+      });
+
+      const channelDescriptions = {
+        beauty: 'Primary Enscape Beauty render pass. Serves as the base canvas and untouched pixel source.',
+        matId: 'Enscape Material ID pass. Enables 1-click selection of all surfaces sharing the same material.',
+        objId: 'Enscape Object ID pass. Enables 1-click contiguous selection of individual architectural elements.',
+        depth: 'Enscape Z-Depth pass. Auto-normalized to 0–255 to lock architectural geometry during generation.',
+        alpha: 'Enscape Alpha Mask pass. Separates foreground architecture from background sky.',
+      };
+
+      document.querySelectorAll('.channel-badge').forEach(badge => {
+        badge.addEventListener('click', () => {
+          const ch = badge.dataset.channel;
+          state.pendingChannelAssign = ch;
+          const fileName = state.channelNames[ch] || 'Not loaded';
+          els.channelModalTitle.textContent = `${badge.textContent.trim()} Pass (${fileName})`;
+          els.channelModalDesc.textContent = channelDescriptions[ch] || '';
+          els.channelModal.classList.remove('hidden');
+        });
+      });
+
+      els.btnCloseChannelModal.addEventListener('click', () => {
+        els.channelModal.classList.add('hidden');
+      });
+      els.btnInspectChannel.addEventListener('click', () => {
+        if (state.pendingChannelAssign) setViewMode(state.pendingChannelAssign);
+        els.channelModal.classList.add('hidden');
+      });
+      els.btnReassignChannel.addEventListener('click', () => {
+        els.channelModal.classList.add('hidden');
+      });
+      els.btnReassignChannel.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          els.channelModal.classList.add('hidden');
+          els.singleChannelInput.click();
+        }
+      });
+      els.singleChannelInput.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        const ch = state.pendingChannelAssign;
+        if (!file || !ch) return;
+        try {
+          const img = await loadImageFromFile(file);
+          if (ch === 'beauty') {
+            state.width = img.naturalWidth;
+            state.height = img.naturalHeight;
+            state.channels.beauty = drawAligned(img, state.width, state.height, true);
+            state.sceneName = file.name.replace(/\.[^.]+$/, '');
+            els.sceneNameLabel.textContent = `Scene: ${state.sceneName}`;
+            initMaskBuffers();
+            resetFilmstripWithOriginal();
+            fitToScreen();
+          } else if (ch === 'depth') {
+            state.channels.depthRaw = drawAligned(img, state.width, state.height, false);
+            state.channels.depthNormalized = buildNormalizedDepthPass(state.channels.depthRaw);
+          } else {
+            state.channels[ch] = drawAligned(img, state.width, state.height, false);
+          }
+          state.channelNames[ch] = file.name;
+          cacheIdPassPixels();
+          applyIdFormatHeuristics();
+          updateChannelBadges();
+          renderViewport();
+          showToast(`Updated ${ch} pass with ${file.name}`, 'success');
+        } catch (err) {
+          showToast(`Could not load ${file.name}: ${err.message}`, 'error');
+        }
+      });
+
+      // =========================================================================
+      // 13. INITIALIZATION
+      // =========================================================================
+      // 13. SETTINGS STORAGE & INITIALIZATION
+      // =========================================================================
+      function loadStoredSettings() {
+        try {
+          state.customApiKey = (localStorage.getItem(STORAGE_KEY_API) || '').trim();
+          state.modelId = (localStorage.getItem(STORAGE_KEY_MODEL) || DEFAULT_MODEL_ID).trim() || DEFAULT_MODEL_ID;
+        } catch (_) {
+          state.customApiKey = '';
+          state.modelId = DEFAULT_MODEL_ID;
+        }
+        updateApiKeyIndicator();
+      }
+
+      function updateApiKeyIndicator() {
+        const hasCustom = Boolean(state.customApiKey);
+        els.apiKeyStatusDot.className = hasCustom
+          ? 'w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.85)]'
+          : 'w-1.5 h-1.5 rounded-full bg-gray-500';
+        els.settingsKeyBadge.textContent = hasCustom ? 'Custom Key Saved' : 'Default Runtime';
+        els.settingsKeyBadge.className = hasCustom
+          ? 'text-[10px] font-mono text-emerald-400'
+          : 'text-[10px] font-mono text-gray-500';
+      }
+
+      function openSettingsModal() {
+        els.apiKeyInput.value = state.customApiKey;
+        els.apiKeyInput.type = 'password';
+        els.btnToggleApiKeyVis.textContent = 'Show';
+        els.modelIdInput.value = state.modelId || DEFAULT_MODEL_ID;
+        updateApiKeyIndicator();
+        els.settingsModal.classList.remove('hidden');
+        els.apiKeyInput.focus();
+      }
+
+      function closeSettingsModal() {
+        els.settingsModal.classList.add('hidden');
+      }
+
+      els.btnOpenSettings.addEventListener('click', openSettingsModal);
+      els.btnCloseSettingsModal.addEventListener('click', closeSettingsModal);
+      els.btnCancelSettings.addEventListener('click', closeSettingsModal);
+      els.settingsModal.addEventListener('click', (e) => {
+        if (e.target === els.settingsModal) closeSettingsModal();
+      });
+
+      els.btnToggleApiKeyVis.addEventListener('click', () => {
+        const isPass = els.apiKeyInput.type === 'password';
+        els.apiKeyInput.type = isPass ? 'text' : 'password';
+        els.btnToggleApiKeyVis.textContent = isPass ? 'Hide' : 'Show';
+      });
+
+      els.btnSaveSettings.addEventListener('click', () => {
+        const keyVal = els.apiKeyInput.value.trim();
+        const modelVal = els.modelIdInput.value.trim() || DEFAULT_MODEL_ID;
+        state.customApiKey = keyVal;
+        state.modelId = modelVal;
+        try {
+          if (keyVal) localStorage.setItem(STORAGE_KEY_API, keyVal);
+          else localStorage.removeItem(STORAGE_KEY_API);
+          localStorage.setItem(STORAGE_KEY_MODEL, modelVal);
+        } catch (_) { /* ignore storage restrictions in private sandboxes */ }
+        updateApiKeyIndicator();
+        closeSettingsModal();
+        showToast(keyVal ? 'Gemini API key saved locally in your browser.' : 'Using default runtime API key.', 'success');
+      });
+
+      els.btnClearApiKey.addEventListener('click', () => {
+        state.customApiKey = '';
+        els.apiKeyInput.value = '';
+        try { localStorage.removeItem(STORAGE_KEY_API); } catch (_) {}
+        updateApiKeyIndicator();
+        showToast('Saved API key cleared from browser.', 'info');
+      });
+
+      window.addEventListener('resize', resizeViewportCanvas);
+
+      window.onload = () => {
+        loadStoredSettings();
+        resizeViewportCanvas();
+        updateChannelBadges();
+        updateResolutionUI();
+        setTool('matId');
+        renderFilmstrip();
+      };
+    })();
+  </script>
+</body>
+</html>
